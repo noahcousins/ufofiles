@@ -44,7 +44,7 @@ export default function RootLayout({
   return (
     <html
       className={cn(
-        "overscroll-x-none antialiased",
+        "overscroll-y-none overscroll-x-none antialiased",
         geist.variable,
         "font-sans",
         jetbrainsMono.variable
