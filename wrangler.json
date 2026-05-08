@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ufofiles",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-05-01",
+  "r2_buckets": [
+    {
+      "binding": "R2_BUCKET",
+      "bucket_name": "ufofiles"
+    }
+  ]
+}
