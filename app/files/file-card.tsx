@@ -13,18 +13,9 @@ import {
 } from "@/components/ui/morphing-dialog"
 import { getFirstPageUrl } from "@/lib/file-cache"
 import { getFileUrl } from "@/lib/file-url"
+import { formatFileSize } from "@/lib/utils"
 import { FileDialog } from "./file-dialog"
 import { AgencySeal } from "./file-filters"
-
-export function formatFileSize(bytes: number | null): string {
-  if (!bytes) {
-    return "—"
-  }
-  const k = 1024
-  const sizes = ["B", "KB", "MB", "GB"]
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return `${Number.parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`
-}
 
 export function getMimeCategory(
   mimeType: string | null
@@ -235,11 +226,21 @@ export function FileCard({
   file,
   isOpen,
   onOpenChange,
+  onNavigate,
+  prevFileId,
+  nextFileId,
+  currentIndex,
+  totalFiles,
   viewData,
 }: {
   file: FileItem
   isOpen: boolean
   onOpenChange: (open: boolean) => void
+  onNavigate: (fileId: number) => void
+  prevFileId: number | null
+  nextFileId: number | null
+  currentIndex: number
+  totalFiles: number
   viewData?: ViewData
 }) {
   const [previewError, setPreviewError] = useState(false)
@@ -312,6 +313,11 @@ export function FileCard({
         file={file}
         fileUrl={fileUrl}
         previewSrc={previewSrc}
+        onNavigate={onNavigate}
+        prevFileId={prevFileId}
+        nextFileId={nextFileId}
+        currentIndex={currentIndex}
+        totalFiles={totalFiles}
         viewData={viewData}
       />
     </MorphingDialog>

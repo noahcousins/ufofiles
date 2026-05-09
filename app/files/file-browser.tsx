@@ -170,7 +170,7 @@ export function FileBrowser() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {allItems.map((file) => (
+            {allItems.map((file, index) => (
               <FileCard
                 file={file}
                 isOpen={filters.fileId === file.id}
@@ -187,6 +187,16 @@ export function FileBrowser() {
                   }
                   setFilters({ fileId: open ? file.id : null })
                 }}
+                onNavigate={(fileId) => {
+                  recordView.mutate({ fileId })
+                  setFilters({ fileId })
+                }}
+                prevFileId={index > 0 ? allItems[index - 1].id : null}
+                nextFileId={
+                  index < allItems.length - 1 ? allItems[index + 1].id : null
+                }
+                currentIndex={index}
+                totalFiles={total ?? allItems.length}
                 viewData={viewCounts?.[file.id]}
               />
             ))}

@@ -2,12 +2,15 @@
 
 import {
   ArrowSquareOutIcon,
+  CaretLeftIcon,
+  CaretRightIcon,
   Pause,
   Play,
   ShareNetworkIcon,
 } from "@phosphor-icons/react"
 import Link from "next/link"
 import posthog from "posthog-js"
+import type React from "react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -22,9 +25,9 @@ import {
   useMorphingDialog,
 } from "@/components/ui/morphing-dialog"
 import { getFileUrl } from "@/lib/file-url"
+import { cn, formatFileSize } from "@/lib/utils"
 import {
   type FileItem,
-  formatFileSize,
   formatMimeLabel,
   TYPE_COLORS,
   TYPE_ICONS,
@@ -357,6 +360,125 @@ function ShareButton({ fileId }: { fileId: number }) {
   )
 }
 
+/**
+ * Determines whether the close button (top-right corner) sits on a light or
+ * dark area. Accounts for `object-contain` — when the rendered image doesn't
+ * reach the right edge of its element (portrait docs), the X sits on the
+ * container background instead, so we fall back to theme-aware defaults.
+ */
+function usePreviewLuminance(
+  src: string | null,
+  isOpen: boolean,
+  category: "PDF" | "VID" | "IMG",
+  previewRef: React.RefObject<HTMLDivElement | null>
+): "light" | "dark" | null {
+  const [luminance, setLuminance] = useState<"light" | "dark" | null>(null)
+
+  useEffect(() => {
+    if (category === "VID") {
+      setLuminance(isOpen ? "dark" : null)
+      return
+    }
+
+    if (!(isOpen && src)) {
+      setLuminance(null)
+      return
+    }
+
+    // Wait a frame so layout is settled and the img element is measurable
+    const raf = requestAnimationFrame(() => {
+      const container = previewRef.current
+      if (!container) {
+        setLuminance(null)
+        return
+      }
+
+      const imgEl = container.querySelector("img")
+      if (!imgEl) {
+        setLuminance(null)
+        return
+      }
+
+      const analyze = () => {
+        const nw = imgEl.naturalWidth
+        const nh = imgEl.naturalHeight
+        if (!(nw && nh)) {
+          setLuminance(null)
+          return
+        }
+
+        // Compute where the image content actually renders (object-contain)
+        const elRect = imgEl.getBoundingClientRect()
+        const ew = elRect.width
+        const eh = elRect.height
+        const scale = Math.min(ew / nw, eh / nh)
+        const renderedW = nw * scale
+        const offsetX = (ew - renderedW) / 2
+
+        // Close button sits at right-6 (24px) from the dialog edge, icon 24×24
+        // Its left edge relative to the preview container ≈ ew - 48
+        const xBtnLeft = ew - 48
+        const imageRight = offsetX + renderedW
+
+        if (xBtnLeft >= imageRight) {
+          // X is in the pillarbox gap, not over image content → use theme default
+          setLuminance(null)
+          return
+        }
+
+        // X is over the image — sample the corresponding region
+        const probe = new Image()
+        probe.crossOrigin = "anonymous"
+        probe.onload = () => {
+          try {
+            const canvas = document.createElement("canvas")
+            const size = 60
+            canvas.width = size
+            canvas.height = size
+            const ctx = canvas.getContext("2d")
+            if (!ctx) {
+              setLuminance(null)
+              return
+            }
+
+            // Map X button position back to source image coordinates
+            const srcX = Math.max(
+              0,
+              Math.round(((xBtnLeft - offsetX) / renderedW) * nw)
+            )
+            const sw = Math.min(Math.round((48 / renderedW) * nw), nw - srcX)
+            const sh = Math.min(Math.round((48 / (nh * scale)) * nh), nh)
+            ctx.drawImage(probe, srcX, 0, sw, sh, 0, 0, size, size)
+
+            const data = ctx.getImageData(0, 0, size, size).data
+            let totalLum = 0
+            const pixelCount = data.length / 4
+            for (let i = 0; i < data.length; i += 4) {
+              totalLum +=
+                0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]
+            }
+            setLuminance(totalLum / pixelCount / 255 < 0.5 ? "dark" : "light")
+          } catch {
+            setLuminance(null)
+          }
+        }
+        probe.onerror = () => setLuminance(null)
+        probe.src = src!
+      }
+
+      if (imgEl.complete && imgEl.naturalWidth > 0) {
+        analyze()
+      } else {
+        imgEl.addEventListener("load", analyze, { once: true })
+      }
+    })
+
+    return () => cancelAnimationFrame(raf)
+  }, [src, isOpen, category, previewRef])
+
+  return luminance
+}
+
 const DESCRIPTION_LIMIT = 200
 
 function DescriptionWithExpand({ description }: { description: string }) {
@@ -406,18 +528,115 @@ export function FileDialog({
   previewSrc,
   category,
   fileUrl,
+  onNavigate,
+  prevFileId,
+  nextFileId,
+  currentIndex,
+  totalFiles,
 }: {
   file: FileItem
   viewData?: ViewData
   previewSrc: string | null
   category: "PDF" | "VID" | "IMG"
   fileUrl: string
+  onNavigate: (fileId: number) => void
+  prevFileId: number | null
+  nextFileId: number | null
+  currentIndex: number
+  totalFiles: number
 }) {
+  const { isOpen } = useMorphingDialog()
+
+  const stableOnNavigate = useRef(onNavigate)
+  stableOnNavigate.current = onNavigate
+  const stablePrev = useRef(prevFileId)
+  stablePrev.current = prevFileId
+  const stableNext = useRef(nextFileId)
+  stableNext.current = nextFileId
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return
+      }
+      if (e.key === "ArrowLeft" && stablePrev.current != null) {
+        e.preventDefault()
+        stableOnNavigate.current(stablePrev.current)
+      } else if (e.key === "ArrowRight" && stableNext.current != null) {
+        e.preventDefault()
+        stableOnNavigate.current(stableNext.current)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [isOpen])
+
+  const hasNav = totalFiles > 1
+  const previewRef = useRef<HTMLDivElement>(null)
+  const luminance = usePreviewLuminance(
+    previewSrc,
+    isOpen,
+    category,
+    previewRef
+  )
+
   return (
     <MorphingDialogContainer>
       <MorphingDialogContent className="relative max-h-[85vh] w-[90vw] max-w-lg overflow-hidden border border-border bg-card">
         <div className="flex max-h-[85vh] flex-col overflow-hidden">
-          <div className="relative shrink-0">
+          {hasNav && (
+            <div className="flex shrink-0 items-center justify-between border-border border-b px-3 py-1.5">
+              <Button
+                className="gap-1"
+                disabled={prevFileId == null}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (prevFileId != null) {
+                    posthog.capture("file_dialog_navigated", {
+                      direction: "prev",
+                      file_id: prevFileId,
+                    })
+                    onNavigate(prevFileId)
+                  }
+                }}
+                size="sm"
+                variant="ghost"
+              >
+                <CaretLeftIcon className="size-3.5" />
+                <span className="hidden sm:inline">Prev</span>
+              </Button>
+              <span className="text-muted-foreground text-xs tabular-nums">
+                {currentIndex + 1}/{totalFiles}
+              </span>
+              <Button
+                className="gap-1"
+                disabled={nextFileId == null}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (nextFileId != null) {
+                    posthog.capture("file_dialog_navigated", {
+                      direction: "next",
+                      file_id: nextFileId,
+                    })
+                    onNavigate(nextFileId)
+                  }
+                }}
+                size="sm"
+                variant="ghost"
+              >
+                <span className="hidden sm:inline">Next</span>
+                <CaretRightIcon className="size-3.5" />
+              </Button>
+            </div>
+          )}
+
+          <div className="relative shrink-0" ref={previewRef}>
             {category === "VID" && file.r2Key ? (
               <DialogVideoPlayer r2Key={file.r2Key} />
             ) : previewSrc ? (
@@ -541,7 +760,16 @@ export function FileDialog({
           </div>
         </div>
 
-        <MorphingDialogClose className="text-muted-foreground hover:text-foreground" />
+        <MorphingDialogClose
+          className={cn(
+            "transition-colors",
+            luminance === "dark"
+              ? "text-white/90 drop-shadow-md hover:text-white"
+              : luminance === "light"
+                ? "text-black/70 drop-shadow-md hover:text-black"
+                : "text-muted-foreground hover:text-foreground"
+          )}
+        />
       </MorphingDialogContent>
     </MorphingDialogContainer>
   )
