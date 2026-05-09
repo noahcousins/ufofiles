@@ -29,7 +29,6 @@ import { cn, formatFileSize } from "@/lib/utils"
 import {
   type FileItem,
   formatMimeLabel,
-  getVideoPreviewUrls,
   TYPE_COLORS,
   TYPE_ICONS,
   type ViewData,
@@ -42,7 +41,7 @@ function formatTime(s: number): string {
   return `${m}:${sec.toString().padStart(2, "0")}`
 }
 
-function DialogVideoPlayer({ r2Key }: { r2Key: string }) {
+function DialogVideoPlayer({ r2Key, poster }: { r2Key: string; poster?: string | null }) {
   const { isOpen } = useMorphingDialog()
   const videoRef = useRef<HTMLVideoElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
@@ -190,7 +189,6 @@ function DialogVideoPlayer({ r2Key }: { r2Key: string }) {
   }, [pctFromX, duration])
 
   const src = getFileUrl(r2Key)
-  const poster = getVideoPreviewUrls(r2Key).thumb
   const realPct = duration > 0 ? (currentTime / duration) * 100 : 0
   const pct = dragPct === null ? realPct : dragPct * 100
 
@@ -205,7 +203,7 @@ function DialogVideoPlayer({ r2Key }: { r2Key: string }) {
         onPlay={() => setPlaying(true)}
         onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
         playsInline
-        poster={poster}
+        poster={poster ?? undefined}
         ref={videoRef}
         src={src}
       />
@@ -641,7 +639,7 @@ export function FileDialog({
 
           <div className="relative shrink-0" ref={previewRef}>
             {category === "VID" && file.r2Key ? (
-              <DialogVideoPlayer r2Key={file.r2Key} />
+              <DialogVideoPlayer r2Key={file.r2Key} poster={previewSrc} />
             ) : previewSrc ? (
               <Link href={fileUrl} onClick={(e) => e.stopPropagation()}>
                 <MorphingDialogImage
