@@ -122,13 +122,21 @@ function DialogVideoPlayer({
 
   const toggleFullscreen = useCallback(() => {
     const el = containerRef.current
-    if (!el) {
-      return
-    }
+    const v = videoRef.current
+
+    // Standard Fullscreen API (desktop browsers, Android, iPad)
     if (document.fullscreenElement) {
       document.exitFullscreen()
-    } else {
+      return
+    }
+    if (el?.requestFullscreen) {
       el.requestFullscreen()
+      return
+    }
+
+    // iOS Safari — only supports fullscreen on the <video> element itself
+    if (v && "webkitEnterFullscreen" in v) {
+      ;(v as HTMLVideoElement & { webkitEnterFullscreen: () => void }).webkitEnterFullscreen()
     }
   }, [])
 
@@ -137,7 +145,19 @@ function DialogVideoPlayer({
       setIsFullscreen(!!document.fullscreenElement)
     }
     document.addEventListener("fullscreenchange", handleChange)
-    return () => document.removeEventListener("fullscreenchange", handleChange)
+
+    // iOS fires events on the video element when entering/exiting native fullscreen
+    const v = videoRef.current
+    const onBegin = () => setIsFullscreen(true)
+    const onEnd = () => setIsFullscreen(false)
+    v?.addEventListener("webkitbeginfullscreen", onBegin)
+    v?.addEventListener("webkitendfullscreen", onEnd)
+
+    return () => {
+      document.removeEventListener("fullscreenchange", handleChange)
+      v?.removeEventListener("webkitbeginfullscreen", onBegin)
+      v?.removeEventListener("webkitendfullscreen", onEnd)
+    }
   }, [])
 
   const draggingRef = useRef(false)
