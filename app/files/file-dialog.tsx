@@ -4,6 +4,8 @@ import {
   ArrowSquareOutIcon,
   CaretLeftIcon,
   CaretRightIcon,
+  CornersInIcon,
+  CornersOutIcon,
   Pause,
   Play,
   ShareNetworkIcon,
@@ -41,15 +43,23 @@ function formatTime(s: number): string {
   return `${m}:${sec.toString().padStart(2, "0")}`
 }
 
-function DialogVideoPlayer({ r2Key, poster }: { r2Key: string; poster?: string | null }) {
+function DialogVideoPlayer({
+  r2Key,
+  poster,
+}: {
+  r2Key: string
+  poster?: string | null
+}) {
   const { isOpen } = useMorphingDialog()
   const videoRef = useRef<HTMLVideoElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
   const [playing, setPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [muted, setMuted] = useState(false)
   const [volume, setVolume] = useState(1)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   useEffect(() => {
     const v = videoRef.current
@@ -109,6 +119,26 @@ function DialogVideoPlayer({ r2Key, poster }: { r2Key: string; poster?: string |
     },
     []
   )
+
+  const toggleFullscreen = useCallback(() => {
+    const el = containerRef.current
+    if (!el) {
+      return
+    }
+    if (document.fullscreenElement) {
+      document.exitFullscreen()
+    } else {
+      el.requestFullscreen()
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+    document.addEventListener("fullscreenchange", handleChange)
+    return () => document.removeEventListener("fullscreenchange", handleChange)
+  }, [])
 
   const draggingRef = useRef(false)
   const [dragPct, setDragPct] = useState<number | null>(null)
@@ -193,9 +223,18 @@ function DialogVideoPlayer({ r2Key, poster }: { r2Key: string; poster?: string |
   const pct = dragPct === null ? realPct : dragPct * 100
 
   return (
-    <div className="relative bg-black">
+    <div
+      className={cn(
+        "relative bg-black",
+        isFullscreen && "flex h-screen flex-col"
+      )}
+      ref={containerRef}
+    >
       <video
-        className="aspect-video w-full"
+        className={cn(
+          "aspect-video w-full",
+          isFullscreen && "flex-1 object-contain"
+        )}
         onClick={togglePlay}
         onEnded={() => setPlaying(false)}
         onLoadedMetadata={() => setDuration(videoRef.current?.duration ?? 0)}
@@ -305,6 +344,19 @@ function DialogVideoPlayer({ r2Key, poster }: { r2Key: string; poster?: string |
           type="range"
           value={muted ? 0 : volume}
         />
+
+        <button
+          className="shrink-0 text-white/80 hover:text-white"
+          onClick={toggleFullscreen}
+          title={isFullscreen ? "Exit full screen" : "Full screen"}
+          type="button"
+        >
+          {isFullscreen ? (
+            <CornersInIcon className="size-4" />
+          ) : (
+            <CornersOutIcon className="size-4" />
+          )}
+        </button>
       </div>
     </div>
   )
