@@ -6,12 +6,32 @@ const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Range",
+  "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
 }
 
 const IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
 
 const RATE_LIMIT_MAX = 30
 const RATE_LIMIT_WINDOW = 60
+
+function parseRange(
+  range: string
+): { offset: number; length?: number } | { suffix: number } {
+  const match = range.match(/bytes=(\d*)-(\d*)/)
+  if (!match) {
+    return { offset: 0 }
+  }
+  const [, startStr, endStr] = match
+  // suffix range: bytes=-500 (last 500 bytes)
+  if (!startStr && endStr) {
+    return { suffix: Number.parseInt(endStr, 10) }
+  }
+  const offset = Number.parseInt(startStr, 10)
+  if (endStr) {
+    return { offset, length: Number.parseInt(endStr, 10) - offset + 1 }
+  }
+  return { offset }
+}
 
 function getMimeType(key: string): string {
   const ext = key.split(".").pop()?.toLowerCase()
@@ -32,7 +52,7 @@ function getMimeType(key: string): string {
 
 function isExemptFromRateLimit(key: string): boolean {
   const ext = key.split(".").pop()?.toLowerCase() ?? ""
-  return ["json", "jpg", "jpeg", "png", "webp", "gif"].includes(ext)
+  return ["json", "jpg", "jpeg", "png", "webp", "gif", "zip"].includes(ext)
 }
 
 async function checkRateLimit(
@@ -94,28 +114,53 @@ export default {
       rateLimitRemaining = remaining
     }
 
-    const object = await env.R2_BUCKET.get(key)
+    const rangeHeader = request.headers.get("Range")
+
+    // For Range requests, use R2's native range support
+    const object = rangeHeader
+      ? await env.R2_BUCKET.get(key, { range: parseRange(rangeHeader) })
+      : await env.R2_BUCKET.get(key)
 
     if (!object) {
       return new Response("Not Found", { status: 404, headers: CORS_HEADERS })
     }
 
+    const contentType =
+      object.httpMetadata?.contentType ?? getMimeType(key)
+    const totalSize = object.size
+
     const headers = new Headers({
       ...CORS_HEADERS,
-      "Content-Type": object.httpMetadata?.contentType ?? getMimeType(key),
+      "Content-Type": contentType,
       "Cache-Control": IMMUTABLE_CACHE,
+      "Accept-Ranges": "bytes",
     })
-
-    if (object.size) {
-      headers.set("Content-Length", object.size.toString())
-    }
 
     if (rateLimitRemaining !== undefined) {
       headers.set("X-RateLimit-Remaining", String(rateLimitRemaining))
     }
 
     const filename = key.split("/").pop() ?? key
-    headers.set("Content-Disposition", `inline; filename="${filename}"`)
+    const disposition = filename.endsWith(".zip") ? "attachment" : "inline"
+    headers.set("Content-Disposition", `${disposition}; filename="${filename}"`)
+
+    // Respond with 206 Partial Content for Range requests
+    if (rangeHeader && "range" in object) {
+      const { offset, length } = object.range as {
+        offset: number
+        length: number
+      }
+      headers.set("Content-Length", length.toString())
+      headers.set(
+        "Content-Range",
+        `bytes ${offset}-${offset + length - 1}/${totalSize}`
+      )
+      return new Response(object.body, { status: 206, headers })
+    }
+
+    if (totalSize) {
+      headers.set("Content-Length", totalSize.toString())
+    }
 
     return new Response(object.body, { headers })
   },
