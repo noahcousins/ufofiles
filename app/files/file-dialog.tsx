@@ -136,7 +136,9 @@ function DialogVideoPlayer({
 
     // iOS Safari — only supports fullscreen on the <video> element itself
     if (v && "webkitEnterFullscreen" in v) {
-      ;(v as HTMLVideoElement & { webkitEnterFullscreen: () => void }).webkitEnterFullscreen()
+      ;(
+        v as HTMLVideoElement & { webkitEnterFullscreen: () => void }
+      ).webkitEnterFullscreen()
     }
   }, [])
 
@@ -426,7 +428,7 @@ function ShareButton({ fileId }: { fileId: number }) {
       ) : (
         <>
           <ShareNetworkIcon className="size-3.5" />
-          Share
+          Share this file
         </>
       )}
     </Button>
