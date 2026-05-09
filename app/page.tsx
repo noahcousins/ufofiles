@@ -22,6 +22,7 @@ export default async function Page({
   )
   void trpc.files.agencies.prefetch()
   void trpc.files.typeCounts.prefetch()
+  void trpc.files.dateRangeCounts.prefetch()
 
   return (
     <HydrateClient>
