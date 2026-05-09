@@ -28,7 +28,7 @@ export function SiteHeader({ children }: { children?: React.ReactNode }) {
               )}
               aria-label="Home"
             >
-              <MagnifyingGlassIcon className="size-4" />
+              <MagnifyingGlassIcon className="size-5 md:size-4" />
             </Link>
             <Link
               href="/globe"
@@ -38,7 +38,7 @@ export function SiteHeader({ children }: { children?: React.ReactNode }) {
               )}
               aria-label="Incident map"
             >
-              <GlobeHemisphereWest className="size-4" />
+              <GlobeHemisphereWest className="size-5 md:size-4" />
             </Link>
             <Link
               href="/releases"
@@ -48,7 +48,7 @@ export function SiteHeader({ children }: { children?: React.ReactNode }) {
               )}
               aria-label="Downloads"
             >
-              <DownloadSimple className="size-4" />
+              <DownloadSimple className="size-5 md:size-4" />
             </Link>
           </div>
         </div>
@@ -59,7 +59,7 @@ export function SiteHeader({ children }: { children?: React.ReactNode }) {
             rel="noopener noreferrer"
             className="inline-flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
           >
-            <XLogoIcon className="size-4 text-muted-foreground hover:text-foreground" />
+            <XLogoIcon className="size-5 text-muted-foreground hover:text-foreground md:size-4" />
           </Link>
           <Link
             href="https://github.com/noahcousins/ufofiles"
@@ -67,7 +67,7 @@ export function SiteHeader({ children }: { children?: React.ReactNode }) {
             rel="noopener noreferrer"
             className="inline-flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
           >
-            <GithubLogoIcon className="size-4 text-muted-foreground hover:text-foreground" />
+            <GithubLogoIcon className="size-5 text-muted-foreground hover:text-foreground md:size-4" />
           </Link>
         </div>
       </div>
