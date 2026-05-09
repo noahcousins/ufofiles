@@ -211,7 +211,9 @@ function MorphingDialogContent({
       )
       if (focusableElements && focusableElements.length > 0) {
         setFirstFocusableElement(focusableElements[0] as HTMLElement)
-        setLastFocusableElement(focusableElements[focusableElements.length - 1] as HTMLElement)
+        setLastFocusableElement(
+          focusableElements.item(focusableElements.length - 1) as HTMLElement
+        )
         ;(focusableElements[0] as HTMLElement).focus()
       }
     } else {
@@ -433,7 +435,7 @@ function MorphingDialogClose({
     <motion.button
       animate="animate"
       aria-label="Close dialog"
-      className={cn("absolute top-6 right-6", className)}
+      className={cn("absolute top-12 right-6", className)}
       exit="exit"
       initial="initial"
       key={`dialog-close-${uniqueId}`}
