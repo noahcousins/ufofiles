@@ -4,7 +4,6 @@ import {
   count,
   desc,
   eq,
-  getTableColumns,
   gte,
   ilike,
   lte,
@@ -14,7 +13,7 @@ import {
 import { z } from "zod/v4"
 import { cacheKey, withCache } from "@/lib/cache"
 import { db } from "@/lib/db"
-import { events, files } from "@/lib/db/schema"
+import { files } from "@/lib/db/schema"
 import { router } from "../init"
 import { rateLimitedProcedure } from "../rateLimit"
 
@@ -61,7 +60,7 @@ export const filesRouter = router({
       const page = cursor ?? 1
 
       return withCache(
-        cacheKey("files:list:v4", {
+        cacheKey("files:list:v5", {
           search,
           agency,
           type,
@@ -121,23 +120,12 @@ export const filesRouter = router({
 
           let items: (typeof files.$inferSelect)[]
           if (sortByViews) {
-            const viewCountSq = db
-              .select({
-                fileId: events.fileId,
-                viewCount: count().as("view_count"),
-              })
-              .from(events)
-              .where(eq(events.type, "view"))
-              .groupBy(events.fileId)
-              .as("view_counts")
-
-            const viewCountExpr = sql<number>`COALESCE(${viewCountSq.viewCount}, 0)`
+            const viewCountExpr = sql<number>`(SELECT COUNT(*)::int FROM events WHERE events.file_id = ${files.id} AND events.type = 'view')`
             const orderFn = sortBy === "most-views" ? desc : asc
 
             items = await db
-              .select(getTableColumns(files))
+              .select()
               .from(files)
-              .leftJoin(viewCountSq, eq(files.id, viewCountSq.fileId))
               .where(where)
               .orderBy(orderFn(viewCountExpr), desc(files.createdAt))
               .limit(pageSize)
