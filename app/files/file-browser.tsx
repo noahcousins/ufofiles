@@ -18,6 +18,7 @@ const filterParsers = {
   agency: parseAsString.withDefault(""),
   type: parseAsString.withDefault(""),
   dateRange: parseAsString.withDefault(""),
+  sort: parseAsString.withDefault("newest"),
   fileId: parseAsInteger.withOptions({ history: "push" }),
 }
 
@@ -77,6 +78,12 @@ export function FileBrowser() {
             | "1960-2000"
             | "pre-1960") || undefined,
         pageSize: PAGE_SIZE,
+        sortBy:
+          (filters.sort as
+            | "newest"
+            | "oldest"
+            | "most-views"
+            | "least-views") || "newest",
       },
       { getNextPageParam: (lastPage) => lastPage.nextCursor }
     )
@@ -120,6 +127,8 @@ export function FileBrowser() {
         <FileFilters
           agencies={agencies}
           agency={filters.agency}
+          dateRange={filters.dateRange}
+          dateRangeCounts={dateRangeCounts}
           onAgencyChange={(val) => {
             setFilters({ agency: val })
             if (val) {
@@ -132,25 +141,29 @@ export function FileBrowser() {
               agency: null,
               type: null,
               dateRange: null,
+              sort: null,
             })
             posthog.capture("filters_cleared")
           }}
-          onSearchChange={handleSearchChange}
-          onTypeChange={(val) => {
-            setFilters({ type: val })
-            if (val) {
-              posthog.capture("type_filter_applied", { file_type: val })
-            }
-          }}
-          dateRange={filters.dateRange}
-          dateRangeCounts={dateRangeCounts}
           onDateRangeChange={(val) => {
             setFilters({ dateRange: val })
             if (val) {
               posthog.capture("date_range_filter_applied", { date_range: val })
             }
           }}
+          onSearchChange={handleSearchChange}
+          onSortChange={(val) => {
+            setFilters({ sort: val })
+            posthog.capture("sort_changed", { sort: val })
+          }}
+          onTypeChange={(val) => {
+            setFilters({ type: val })
+            if (val) {
+              posthog.capture("type_filter_applied", { file_type: val })
+            }
+          }}
           searchInput={searchInput}
+          sort={filters.sort}
           totalDocuments={total}
           type={filters.type}
           typeCounts={typeCounts}
@@ -172,9 +185,17 @@ export function FileBrowser() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {allItems.map((file, index) => (
               <FileCard
+                currentIndex={index}
                 file={file}
                 isOpen={filters.fileId === file.id}
                 key={file.id}
+                nextFileId={
+                  index < allItems.length - 1 ? allItems[index + 1].id : null
+                }
+                onNavigate={(fileId) => {
+                  recordView.mutate({ fileId })
+                  setFilters({ fileId })
+                }}
                 onOpenChange={(open) => {
                   if (open) {
                     recordView.mutate({ fileId: file.id })
@@ -187,15 +208,7 @@ export function FileBrowser() {
                   }
                   setFilters({ fileId: open ? file.id : null })
                 }}
-                onNavigate={(fileId) => {
-                  recordView.mutate({ fileId })
-                  setFilters({ fileId })
-                }}
                 prevFileId={index > 0 ? allItems[index - 1].id : null}
-                nextFileId={
-                  index < allItems.length - 1 ? allItems[index + 1].id : null
-                }
-                currentIndex={index}
                 totalFiles={total ?? allItems.length}
                 viewData={viewCounts?.[file.id]}
               />

@@ -50,6 +50,13 @@ export function AgencySeal({ agency }: { agency: string }) {
   )
 }
 
+const SORT_LABELS: Record<string, string> = {
+  newest: "Newest",
+  oldest: "Oldest",
+  "most-views": "Most views",
+  "least-views": "Least views",
+}
+
 export interface FileFiltersProps {
   agencies: string[]
   agency: string
@@ -59,8 +66,10 @@ export interface FileFiltersProps {
   onClearFilters: () => void
   onDateRangeChange: (value: string | null) => void
   onSearchChange: (value: string) => void
+  onSortChange: (value: string) => void
   onTypeChange: (value: string | null) => void
   searchInput: string
+  sort: string
   totalDocuments: number | null
   type: string
   typeCounts: { type: string; count: number }[]
@@ -76,12 +85,20 @@ export function FileFilters({
   dateRange,
   onDateRangeChange,
   onClearFilters,
+  onSortChange,
   agencies,
+  sort,
   typeCounts,
   dateRangeCounts,
   totalDocuments,
 }: FileFiltersProps) {
-  const hasActiveFilters = !!(searchInput || agency || type || dateRange)
+  const hasActiveFilters = !!(
+    searchInput ||
+    agency ||
+    type ||
+    dateRange ||
+    (sort && sort !== "newest")
+  )
 
   return (
     <div className="border-border/40 border-b">
@@ -179,9 +196,25 @@ export function FileFilters({
           </button>
         )}
 
-        <span className="mr-0 ml-auto text-muted-foreground text-xs tabular-nums tracking-tight md:mr-0">
-          {totalDocuments === null ? " " : `${totalDocuments} files`}
-        </span>
+        <div className="mr-0 ml-auto flex items-center gap-2 md:mr-0">
+          <span className="text-muted-foreground text-xs tabular-nums tracking-tight">
+            {totalDocuments === null ? " " : `${totalDocuments} files`}
+          </span>
+          <Select
+            onValueChange={(val) => val && onSortChange(val)}
+            value={sort || "newest"}
+          >
+            <SelectTrigger className="h-7 w-[130px] text-xs">
+              <SelectValue>{SORT_LABELS[sort] ?? "Newest"}</SelectValue>
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              <SelectItem value="newest">Newest</SelectItem>
+              <SelectItem value="oldest">Oldest</SelectItem>
+              <SelectItem value="most-views">Most views</SelectItem>
+              <SelectItem value="least-views">Least views</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
     </div>
   )

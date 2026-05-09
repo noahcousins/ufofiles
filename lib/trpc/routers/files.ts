@@ -4,6 +4,7 @@ import {
   count,
   desc,
   eq,
+  getTableColumns,
   gte,
   ilike,
   lte,
@@ -13,7 +14,7 @@ import {
 import { z } from "zod/v4"
 import { cacheKey, withCache } from "@/lib/cache"
 import { db } from "@/lib/db"
-import { files } from "@/lib/db/schema"
+import { events, files } from "@/lib/db/schema"
 import { router } from "../init"
 import { rateLimitedProcedure } from "../rateLimit"
 
@@ -41,9 +42,8 @@ export const filesRouter = router({
         cursor: z.number().min(1).nullish(),
         pageSize: z.number().min(1).max(100).default(48),
         sortBy: z
-          .enum(["title", "agency", "fileSize", "createdAt"])
-          .default("title"),
-        sortOrder: z.enum(["asc", "desc"]).default("asc"),
+          .enum(["newest", "oldest", "most-views", "least-views"])
+          .default("newest"),
       })
     )
     .query(async ({ input }) => {
@@ -55,14 +55,13 @@ export const filesRouter = router({
         releaseId,
         cursor,
         pageSize = 48,
-        sortBy = "title",
-        sortOrder = "asc",
+        sortBy = "newest",
       } = input
 
       const page = cursor ?? 1
 
       return withCache(
-        cacheKey("files:list:v3", {
+        cacheKey("files:list:v4", {
           search,
           agency,
           type,
@@ -71,7 +70,6 @@ export const filesRouter = router({
           page,
           pageSize,
           sortBy,
-          sortOrder,
         }),
         SIX_HOURS,
         async () => {
@@ -118,25 +116,47 @@ export const filesRouter = router({
 
           const where = conditions.length > 0 ? and(...conditions) : undefined
 
-          const sortColumn = {
-            title: files.title,
-            agency: files.agency,
-            fileSize: files.fileSize,
-            createdAt: files.createdAt,
-          }[sortBy]
+          const sortByViews =
+            sortBy === "most-views" || sortBy === "least-views"
 
-          const orderFn = sortOrder === "desc" ? desc : asc
+          let items: (typeof files.$inferSelect)[]
+          if (sortByViews) {
+            const viewCountSq = db
+              .select({
+                fileId: events.fileId,
+                viewCount: count().as("view_count"),
+              })
+              .from(events)
+              .where(eq(events.type, "view"))
+              .groupBy(events.fileId)
+              .as("view_counts")
 
-          const [items, [total]] = await Promise.all([
-            db
+            const viewCountExpr = sql<number>`COALESCE(${viewCountSq.viewCount}, 0)`
+            const orderFn = sortBy === "most-views" ? desc : asc
+
+            items = await db
+              .select(getTableColumns(files))
+              .from(files)
+              .leftJoin(viewCountSq, eq(files.id, viewCountSq.fileId))
+              .where(where)
+              .orderBy(orderFn(viewCountExpr), desc(files.createdAt))
+              .limit(pageSize)
+              .offset((page - 1) * pageSize)
+          } else {
+            const orderFn = sortBy === "newest" ? desc : asc
+            items = await db
               .select()
               .from(files)
               .where(where)
-              .orderBy(orderFn(sortColumn))
+              .orderBy(orderFn(files.createdAt))
               .limit(pageSize)
-              .offset((page - 1) * pageSize),
-            db.select({ count: count() }).from(files).where(where),
-          ])
+              .offset((page - 1) * pageSize)
+          }
+
+          const [total] = await db
+            .select({ count: count() })
+            .from(files)
+            .where(where)
 
           const totalPages = Math.ceil(total.count / pageSize)
 
