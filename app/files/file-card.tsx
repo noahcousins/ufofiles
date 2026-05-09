@@ -53,7 +53,7 @@ export function formatMimeLabel(mimeType: string | null): string {
 
 const VIDEO_REGEX = /\.mp4$/i
 
-function getVideoPreviewUrls(r2Key: string) {
+export function getVideoPreviewUrls(r2Key: string) {
   const parts = r2Key.split("/")
   const filename = parts.pop()!
   const stem = filename.replace(VIDEO_REGEX, "")

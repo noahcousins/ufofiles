@@ -29,6 +29,7 @@ import { cn, formatFileSize } from "@/lib/utils"
 import {
   type FileItem,
   formatMimeLabel,
+  getVideoPreviewUrls,
   TYPE_COLORS,
   TYPE_ICONS,
   type ViewData,
@@ -189,13 +190,14 @@ function DialogVideoPlayer({ r2Key }: { r2Key: string }) {
   }, [pctFromX, duration])
 
   const src = getFileUrl(r2Key)
+  const poster = getVideoPreviewUrls(r2Key).thumb
   const realPct = duration > 0 ? (currentTime / duration) * 100 : 0
   const pct = dragPct === null ? realPct : dragPct * 100
 
   return (
     <div className="relative bg-black">
       <video
-        className="w-full"
+        className="aspect-video w-full"
         onClick={togglePlay}
         onEnded={() => setPlaying(false)}
         onLoadedMetadata={() => setDuration(videoRef.current?.duration ?? 0)}
@@ -203,6 +205,7 @@ function DialogVideoPlayer({ r2Key }: { r2Key: string }) {
         onPlay={() => setPlaying(true)}
         onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
         playsInline
+        poster={poster}
         ref={videoRef}
         src={src}
       />
