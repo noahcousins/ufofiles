@@ -2,7 +2,7 @@ import { asc, count, eq, sum } from "drizzle-orm"
 import { z } from "zod/v4"
 import { cacheKey, withCache } from "@/lib/cache"
 import { db } from "@/lib/db"
-import { files, releases } from "@/lib/db/schema"
+import { files, releaseDownloads, releases } from "@/lib/db/schema"
 import { router } from "../init"
 import { rateLimitedProcedure } from "../rateLimit"
 
@@ -53,4 +53,19 @@ export const releasesRouter = router({
         return { ...release, files: releaseFiles }
       })
     ),
+
+  downloads: rateLimitedProcedure("query").query(async () =>
+    withCache("releases:downloads", ONE_DAY, async () => {
+      const result = await db.query.releases.findMany({
+        orderBy: asc(releases.name),
+        with: {
+          releaseDownloads: {
+            orderBy: asc(releaseDownloads.sortOrder),
+          },
+        },
+      })
+
+      return result.filter((r) => r.releaseDownloads.length > 0)
+    })
+  ),
 })

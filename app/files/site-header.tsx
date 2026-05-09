@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  DownloadSimple,
   GlobeHemisphereWest,
   MagnifyingGlassIcon,
 } from "@phosphor-icons/react/dist/ssr"
@@ -35,6 +36,16 @@ export function SiteHeader({ children }: { children?: React.ReactNode }) {
             aria-label="Incident map"
           >
             <GlobeHemisphereWest className="size-4" />
+          </Link>
+          <Link
+            href="/releases"
+            className={cn(
+              "inline-flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground",
+              pathname === "/releases" && "text-foreground"
+            )}
+            aria-label="Downloads"
+          >
+            <DownloadSimple className="size-4" />
           </Link>
         </div>
       </div>

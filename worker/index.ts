@@ -52,7 +52,7 @@ function getMimeType(key: string): string {
 
 function isExemptFromRateLimit(key: string): boolean {
   const ext = key.split(".").pop()?.toLowerCase() ?? ""
-  return ["json", "jpg", "jpeg", "png", "webp", "gif", "zip"].includes(ext)
+  return ["json", "jpg", "jpeg", "png", "webp", "gif"].includes(ext)
 }
 
 async function checkRateLimit(

@@ -43,6 +43,19 @@ export const files = pgTable("files", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
 
+export const releaseDownloads = pgTable("release_downloads", {
+  id: serial("id").primaryKey(),
+  releaseId: integer("release_id")
+    .notNull()
+    .references(() => releases.id),
+  label: text("label").notNull(),
+  slug: text("slug").notNull(),
+  r2Key: text("r2_key").notNull(),
+  fileSize: bigint("file_size", { mode: "number" }).notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+})
+
 export const events = pgTable(
   "events",
   {
@@ -61,8 +74,19 @@ export const events = pgTable(
   ]
 )
 
+export const releaseDownloadsRelations = relations(
+  releaseDownloads,
+  ({ one }) => ({
+    release: one(releases, {
+      fields: [releaseDownloads.releaseId],
+      references: [releases.id],
+    }),
+  })
+)
+
 export const releasesRelations = relations(releases, ({ many }) => ({
   files: many(files),
+  releaseDownloads: many(releaseDownloads),
 }))
 
 export const filesRelations = relations(files, ({ one, many }) => ({

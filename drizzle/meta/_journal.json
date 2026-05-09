@@ -8,6 +8,13 @@
       "when": 1778279379132,
       "tag": "0000_lame_joseph",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1778291878735,
+      "tag": "0001_deep_red_wolf",
+      "breakpoints": true
     }
   ]
 }
