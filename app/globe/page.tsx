@@ -1,30 +1,6 @@
-import { Suspense } from "react"
-import { HydrateClient, trpc } from "@/lib/trpc/server"
-import { Globe } from "./globe"
+import { permanentRedirect } from "next/navigation"
 
-export const metadata = {
-  title: "Incident Map | [ufo]files",
-  description: "Visualize UFO and UAP incident locations on a 3D globe",
-}
-
-export default async function GlobePage() {
-  await trpc.files.locations.prefetch()
-
-  return (
-    <HydrateClient>
-      <Suspense fallback={<GlobeLoading />}>
-        <Globe />
-      </Suspense>
-    </HydrateClient>
-  )
-}
-
-function GlobeLoading() {
-  return (
-    <div className="flex h-screen w-full items-center justify-center bg-background">
-      <div className="animate-pulse text-muted-foreground">
-        Loading globe...
-      </div>
-    </div>
-  )
+// we launched with a /globe route, but we've since renamed it to /map
+export default function GlobeRedirectPage() {
+  permanentRedirect("/map")
 }

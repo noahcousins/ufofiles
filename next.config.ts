@@ -1,6 +1,7 @@
 const nextConfig = {
   async rewrites() {
     return [
+      // posthog
       {
         source: "/ingest/static/:path*",
         destination: "https://us-assets.i.posthog.com/static/:path*",
@@ -12,6 +13,12 @@ const nextConfig = {
       {
         source: "/ingest/:path*",
         destination: "https://us.i.posthog.com/:path*",
+      },
+      // app redirects
+      {
+        source: "/globe",
+        destination: "/map",
+        permanent: true,
       },
     ]
   },
