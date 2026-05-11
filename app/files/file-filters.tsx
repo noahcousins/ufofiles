@@ -119,7 +119,7 @@ export function FileFilters({
     <div className="">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 pb-3">
         {/* Desktop filters - hidden on mobile */}
-        <div className="hidden w-full grid-cols-2 gap-3 md:grid lg:grid-cols-4">
+        <div className="hidden w-full grid-cols-2 gap-3 lg:grid lg:grid-cols-4">
           <Input
             className="col-span-2 h-9 text-sm"
             onChange={(e) => onSearchChange(e.target.value)}
@@ -206,7 +206,7 @@ export function FileFilters({
           </div>
           <div className="ml-auto flex items-center">
             <Drawer direction="bottom" modal={false}>
-              <DrawerTrigger className="inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-none border border-transparent px-3 py-1.5 font-medium text-muted-foreground text-xs transition-all hover:bg-muted hover:text-foreground md:hidden">
+              <DrawerTrigger className="inline-flex shrink-0 select-none items-center justify-center gap-1.5 whitespace-nowrap rounded-none border border-transparent px-3 py-1.5 font-medium text-muted-foreground text-xs transition-all hover:bg-muted hover:text-foreground lg:hidden">
                 <FunnelSimple className="size-4" />
                 {activeFilterCount > 0 && (
                   <span className="inline-flex size-4 items-center justify-center rounded-full bg-foreground text-[10px] text-background">
@@ -346,7 +346,7 @@ export function FileFilters({
         {mobileSearchOpen && (
           <motion.div
             animate={{ height: "auto", opacity: 1 }}
-            className="overflow-hidden md:hidden"
+            className="overflow-hidden lg:hidden"
             exit={{ height: 0, opacity: 0 }}
             initial={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.15, ease: "easeInOut" }}
@@ -372,8 +372,8 @@ export function FileFiltersSkeleton() {
   return (
     <div className="border-border/40 border-b">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 pb-3">
-        <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          <div className="col-span-1 h-8 animate-pulse rounded-none border border-border bg-muted/30 sm:col-span-1 md:col-span-2 lg:col-span-3" />
+        <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:grid-cols-4">
+          <div className="col-span-1 h-8 animate-pulse rounded-none border border-border bg-muted/30 sm:col-span-1 lg:col-span-2 lg:col-span-3" />
           <div className="h-8 animate-pulse rounded-none border border-border bg-muted/30" />
         </div>
         <div className="flex gap-1">

@@ -195,7 +195,7 @@ export function FileBrowser() {
 
       <div className="mx-auto max-w-6xl px-4 py-6">
         {isLoading ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:grid-cols-4">
             {Array.from({ length: PAGE_SIZE / 4 }).map((_, i) => (
               <SkeletonCard key={i} />
             ))}
@@ -205,7 +205,7 @@ export function FileBrowser() {
             No files found.
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:grid-cols-4">
             {allItems.map((file, index) => (
               <FileCard
                 currentIndex={index}
@@ -258,7 +258,7 @@ export function FileBrowserSkeleton() {
       </Header>
 
       <div className="mx-auto max-w-6xl px-4 py-6">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: PAGE_SIZE / 4 }).map((_, i) => (
             <SkeletonCard key={i} />
           ))}

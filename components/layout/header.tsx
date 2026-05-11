@@ -61,7 +61,7 @@ export function Header({
           <Logo className="h-3.5" />
 
           {/* Desktop nav */}
-          <div className="hidden items-center gap-1 md:flex">
+          <div className="hidden items-center gap-1 lg:flex">
             {navLinks.map(({ href, label, icon: Icon }) => (
               <Link
                 aria-label={label}
@@ -79,7 +79,7 @@ export function Header({
         </div>
 
         {/* Desktop social links */}
-        <div className="hidden items-center gap-1 md:flex">
+        <div className="hidden items-center gap-1 lg:flex">
           {socialLinks.map(({ href, label, icon: Icon }) => (
             <Link
               aria-label={label}
@@ -94,16 +94,14 @@ export function Header({
           ))}
         </div>
 
-        <div className="flex items-center gap-1 md:hidden">
+        <div className="flex items-center gap-1 lg:hidden">
           {/* Mobile search icon */}
           {isMainPage ? (
             <button
               aria-label="Toggle search"
               className={cn(
                 "inline-flex size-8 items-center justify-center transition-colors hover:text-foreground",
-                mobileSearchOpen
-                  ? "text-foreground"
-                  : "text-muted-foreground"
+                mobileSearchOpen ? "text-foreground" : "text-muted-foreground"
               )}
               onClick={onMobileSearchToggle}
               type="button"
