@@ -1,8 +1,9 @@
+import type { Metadata } from "next"
 import { Suspense } from "react"
 import { HydrateClient, trpc } from "@/lib/trpc/server"
 import { ReleasesPage } from "./releases-page"
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Releases | [ufo]files",
   description:
     "Download complete release archives of declassified UFO and UAP files.",
