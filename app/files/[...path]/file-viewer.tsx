@@ -6,6 +6,7 @@ import {
   CaretLeftIcon,
   CaretRightIcon,
   DownloadSimpleIcon,
+  FileTextIcon,
 } from "@phosphor-icons/react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -13,7 +14,7 @@ import posthog from "posthog-js"
 import { useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { prefetchIfNew } from "@/lib/file-cache"
-import { getFileUrl } from "@/lib/file-url"
+import { getFileUrl, getStreamingVideoUrl } from "@/lib/file-url"
 import { trpc } from "@/lib/trpc/client"
 import { cn } from "@/lib/utils"
 import { PdfViewer } from "./pdf-viewer"
@@ -70,6 +71,7 @@ export function FileViewer({
   totalFiles,
   pageCount = 0,
   documentUrl,
+  transcriptR2Key,
 }: {
   fileKey: string
   fileId: number | null
@@ -81,6 +83,7 @@ export function FileViewer({
   totalFiles: number
   pageCount?: number
   documentUrl?: string | null
+  transcriptR2Key?: string | null
 }) {
   const router = useRouter()
   const fileUrl = getFileUrl(fileKey)
@@ -259,6 +262,30 @@ export function FileViewer({
             </Button>
           </a>
 
+          {transcriptR2Key && (
+            <a
+              download
+              href={getFileUrl(transcriptR2Key)}
+              onClick={() =>
+                posthog.capture("transcript_downloaded_viewer", {
+                  file_key: fileKey,
+                })
+              }
+            >
+              <Button className="sm:hidden" size="sm" variant="outline">
+                <FileTextIcon className="size-3.5" />
+              </Button>
+              <Button
+                className="hidden gap-1.5 sm:inline-flex"
+                size="sm"
+                variant="outline"
+              >
+                <FileTextIcon className="size-3.5" />
+                Transcript
+              </Button>
+            </a>
+          )}
+
           {documentUrl && (
             <a href={documentUrl} rel="noopener noreferrer" target="_blank">
               <Button className="gap-1.5" size="sm" variant="ghost">
@@ -306,7 +333,7 @@ export function FileViewer({
               autoPlay
               className="max-h-full max-w-full"
               controls
-              src={fileUrl}
+              src={getStreamingVideoUrl(fileKey)}
             >
               Your browser does not support the video tag.
             </video>
