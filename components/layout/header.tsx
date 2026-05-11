@@ -60,7 +60,6 @@ export function Header({
         <div className="flex items-center gap-4">
           <Logo className="h-3.5" />
 
-          {/* Desktop nav */}
           <div className="hidden items-center gap-1 lg:flex">
             {navLinks.map(({ href, label, icon: Icon }) => (
               <Link
@@ -78,7 +77,6 @@ export function Header({
           </div>
         </div>
 
-        {/* Desktop social links */}
         <div className="hidden items-center gap-1 lg:flex">
           {socialLinks.map(({ href, label, icon: Icon }) => (
             <Link
@@ -95,7 +93,6 @@ export function Header({
         </div>
 
         <div className="flex items-center gap-1 lg:hidden">
-          {/* Mobile search icon */}
           {isMainPage ? (
             <button
               aria-label="Toggle search"
@@ -118,7 +115,6 @@ export function Header({
             </Link>
           )}
 
-          {/* Mobile menu */}
           <Sheet onOpenChange={setOpen} open={open}>
             <SheetTrigger
               aria-label="Open menu"
@@ -132,14 +128,14 @@ export function Header({
                 {navLinks.map(({ href, label, icon: Icon }) => (
                   <Link
                     className={cn(
-                      "flex items-center gap-3 px-3 py-3 font-medium text-muted-foreground text-xs transition-all hover:bg-muted hover:text-foreground active:translate-y-px",
+                      "flex items-center gap-3 px-3 py-3 font-medium text-lg text-muted-foreground transition-all hover:bg-muted hover:text-foreground active:translate-y-px",
                       pathname === href && "bg-muted text-foreground"
                     )}
                     href={href}
                     key={href}
                     onClick={() => setOpen(false)}
                   >
-                    <Icon className="size-5" />
+                    <Icon className="size-8" />
                     {label}
                   </Link>
                 ))}
