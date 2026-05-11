@@ -11,8 +11,13 @@ import {
   MorphingDialogTitle,
   MorphingDialogTrigger,
 } from "@/components/ui/morphing-dialog"
-import { getFirstPageUrl } from "@/lib/file-cache"
-import { getFileUrl } from "@/lib/file-url"
+import {
+  getCardThumbUrl,
+  getFileUrl,
+  getFirstPdfPageUrl,
+  getVideoGifUrl,
+  getVideoThumbUrl,
+} from "@/lib/file-url"
 import { formatFileSize } from "@/lib/utils"
 import { FileDialog } from "./file-dialog"
 import { AgencySeal } from "./file-filters"
@@ -51,38 +56,11 @@ export function formatMimeLabel(mimeType: string | null): string {
   return mimeType
 }
 
-const VIDEO_REGEX = /\.mp4$/i
-
-function getVideoPreviewUrls(r2Key: string) {
-  const parts = r2Key.split("/")
-  const filename = parts.pop()!
-  const stem = filename.replace(VIDEO_REGEX, "")
-  const prefix = parts.join("/")
-  return {
-    thumb: getFileUrl(`${prefix}/previews/${stem}_thumb.jpg`),
-    gif: getFileUrl(`${prefix}/previews/${stem}_preview.gif`),
+function getPreviewSrc(r2Key: string | null): string | null {
+  if (!r2Key) {
+    return null
   }
-}
-
-function getPreviewSrc(file: {
-  mimeType: string | null
-  r2Key: string | null
-  thumbnailUrl: string | null
-}): string | null {
-  const cat = getMimeCategory(file.mimeType)
-  if (cat === "IMG" && file.r2Key) {
-    return getFileUrl(file.r2Key)
-  }
-  if (cat === "VID" && file.r2Key) {
-    return getVideoPreviewUrls(file.r2Key).thumb
-  }
-  if (cat === "PDF" && file.r2Key) {
-    return getFirstPageUrl(file.r2Key)
-  }
-  if (cat === "PDF" && file.thumbnailUrl) {
-    return file.thumbnailUrl
-  }
-  return null
+  return getCardThumbUrl(r2Key)
 }
 
 export const TYPE_COLORS: Record<string, string> = {
@@ -155,6 +133,7 @@ export interface FileItem {
   releaseDate: string | null
   thumbnailUrl: string | null
   title: string
+  transcriptR2Key: string | null
 }
 
 export interface ViewData {
@@ -169,7 +148,10 @@ function VideoTriggerPreview({
   file: { r2Key: string; title: string }
 }) {
   const [hovered, setHovered] = useState(false)
-  const { thumb, gif } = getVideoPreviewUrls(file.r2Key)
+  const [thumbError, setThumbError] = useState(false)
+  const thumb = getVideoThumbUrl(file.r2Key)
+  const gif = getVideoGifUrl(file.r2Key)
+  const cardThumb = getCardThumbUrl(file.r2Key)
 
   return (
     <div
@@ -180,7 +162,8 @@ function VideoTriggerPreview({
       <MorphingDialogImage
         alt={file.title}
         className="h-full w-full object-contain"
-        src={thumb}
+        onError={() => !thumbError && setThumbError(true)}
+        src={thumbError ? thumb : cardThumb}
       />
       {hovered && (
         <img
@@ -243,13 +226,15 @@ export function FileCard({
   totalFiles: number
   viewData?: ViewData
 }) {
-  const [previewError, setPreviewError] = useState(false)
-
-  const rawPreviewSrc = getPreviewSrc(file)
-  const fallbackSrc = file.thumbnailUrl
-  const previewSrc = previewError ? fallbackSrc : rawPreviewSrc
-  const fileUrl = file.r2Key ? `/files/${encodeURIComponent(file.r2Key)}` : "#"
   const category = getMimeCategory(file.mimeType)
+  const previewSrc = getPreviewSrc(file.r2Key)
+  const dialogPreviewSrc =
+    category === "IMG" && file.r2Key
+      ? getFileUrl(file.r2Key)
+      : category === "PDF" && file.r2Key
+        ? getFirstPdfPageUrl(file.r2Key)
+        : previewSrc
+  const fileUrl = file.r2Key ? `/files/${encodeURIComponent(file.r2Key)}` : "#"
 
   return (
     <MorphingDialog
@@ -266,7 +251,6 @@ export function FileCard({
           <MorphingDialogImage
             alt={file.title}
             className="aspect-[4/3] w-full border-border/50 border-b bg-black/10 object-contain"
-            onError={() => !previewError && setPreviewError(true)}
             src={previewSrc}
           />
         ) : (
@@ -312,7 +296,8 @@ export function FileCard({
         category={category}
         file={file}
         fileUrl={fileUrl}
-        previewSrc={previewSrc}
+        previewSrc={dialogPreviewSrc}
+        thumbSrc={previewSrc}
         onNavigate={onNavigate}
         prevFileId={prevFileId}
         nextFileId={nextFileId}
