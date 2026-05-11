@@ -8,7 +8,7 @@ import {
   Image,
   VideoCamera,
 } from "@phosphor-icons/react/dist/ssr"
-import { SiteHeader } from "@/app/files/site-header"
+import { Header } from "@/components/layout/header"
 import { Badge } from "@/components/ui/badge"
 import { getFileUrl } from "@/lib/file-url"
 import { trpc } from "@/lib/trpc/client"
@@ -35,7 +35,7 @@ export function ReleasesPage() {
 
   return (
     <>
-      <SiteHeader />
+      <Header />
       <main className="mx-auto max-w-6xl px-4 py-8">
         <div className="mb-8">
           <h1 className="font-heading font-semibold text-2xl tracking-tight">

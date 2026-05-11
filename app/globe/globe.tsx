@@ -5,7 +5,7 @@ import createGlobe from "cobe"
 import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { SiteHeader } from "@/app/files/site-header"
+import { Header } from "@/components/layout/header"
 import { geocodeLocation } from "@/lib/geo/locations"
 import { trpc } from "@/lib/trpc/client"
 
@@ -485,7 +485,7 @@ export function Globe() {
       })}
 
       <div className="absolute inset-x-0 top-0 z-40">
-        <SiteHeader />
+        <Header />
       </div>
 
       {hoveredMeta && (
