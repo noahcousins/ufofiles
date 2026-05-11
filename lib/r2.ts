@@ -3,6 +3,7 @@ import {
   ListObjectsV2Command,
   S3Client,
 } from "@aws-sdk/client-s3"
+import { parseBucketPrefix } from "./r2-paths"
 
 const r2 = new S3Client({
   region: "auto",
@@ -13,7 +14,23 @@ const r2 = new S3Client({
   },
 })
 
-const BUCKET = process.env.R2_BUCKET_NAME!
+const BUCKET_NAMES: Record<string, string | undefined> = {
+  source: process.env.R2_SOURCE_BUCKET_NAME,
+  assets: process.env.R2_ASSETS_BUCKET_NAME,
+  downloads: process.env.R2_DOWNLOADS_BUCKET_NAME,
+}
+
+const LEGACY_BUCKET = process.env.R2_BUCKET_NAME
+
+function resolveBucket(r2Key: string): { bucket: string; objectKey: string } {
+  const { bucket, objectKey } = parseBucketPrefix(r2Key)
+  const bucketName = BUCKET_NAMES[bucket]
+  if (bucketName) {
+    return { bucket: bucketName, objectKey }
+  }
+  // Legacy fallback
+  return { bucket: LEGACY_BUCKET ?? BUCKET_NAMES.source!, objectKey: r2Key }
+}
 
 export interface R2File {
   key: string
@@ -22,13 +39,17 @@ export interface R2File {
 }
 
 export async function listAllFiles(prefix?: string): Promise<R2File[]> {
+  const { bucket, objectKey } = prefix
+    ? resolveBucket(prefix)
+    : { bucket: LEGACY_BUCKET ?? BUCKET_NAMES.source!, objectKey: undefined }
+
   const files: R2File[] = []
   let continuationToken: string | undefined
 
   do {
     const command = new ListObjectsV2Command({
-      Bucket: BUCKET,
-      Prefix: prefix,
+      Bucket: bucket,
+      Prefix: objectKey,
       MaxKeys: 1000,
       ContinuationToken: continuationToken,
     })
@@ -63,11 +84,15 @@ export async function listFiles(opts?: {
   cursor: string | null
   hasMore: boolean
 }> {
+  const { bucket, objectKey } = opts?.prefix
+    ? resolveBucket(opts.prefix)
+    : { bucket: LEGACY_BUCKET ?? BUCKET_NAMES.source!, objectKey: undefined }
+
   const limit = Math.min(opts?.limit ?? 100, 1000)
 
   const command = new ListObjectsV2Command({
-    Bucket: BUCKET,
-    Prefix: opts?.prefix,
+    Bucket: bucket,
+    Prefix: objectKey,
     MaxKeys: limit,
     ContinuationToken: opts?.cursor,
   })
@@ -90,9 +115,11 @@ export async function listFiles(opts?: {
 }
 
 export async function getFile(key: string, range?: string) {
+  const { bucket, objectKey } = resolveBucket(key)
+
   const command = new GetObjectCommand({
-    Bucket: BUCKET,
-    Key: key,
+    Bucket: bucket,
+    Key: objectKey,
     ...(range ? { Range: range } : {}),
   })
 
