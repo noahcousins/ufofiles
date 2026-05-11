@@ -216,11 +216,16 @@ export function FileFilters({
               </DrawerTrigger>
               <DrawerContent className="inset-x-0 bottom-0 mt-24 max-h-[80vh] border-t">
                 <DrawerHeader>
-                  <DrawerTitle>Filters</DrawerTitle>
+                  <DrawerTitle className="font-medium font-mono text-lg tracking-tighter">
+                    Filters
+                  </DrawerTitle>
                 </DrawerHeader>
                 <div className="flex flex-col gap-4 px-4 pb-6">
                   <div className="flex flex-col gap-1.5">
-                    <label className="font-medium text-muted-foreground text-xs">
+                    <label
+                      className="font-medium text-muted-foreground text-xs"
+                      htmlFor="agency"
+                    >
                       Agency
                     </label>
                     <Select
@@ -257,7 +262,10 @@ export function FileFilters({
                   </div>
 
                   <div className="flex flex-col gap-1.5">
-                    <label className="font-medium text-muted-foreground text-xs">
+                    <label
+                      className="font-medium text-muted-foreground text-xs"
+                      htmlFor="date-range"
+                    >
                       Date range
                     </label>
                     <Select
