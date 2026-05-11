@@ -1,5 +1,8 @@
 export interface Env {
-  R2_BUCKET: R2Bucket
+  R2_SOURCE: R2Bucket
+  R2_ASSETS: R2Bucket
+  R2_DOWNLOADS: R2Bucket
+  R2_LEGACY?: R2Bucket
 }
 
 const CORS_HEADERS: Record<string, string> = {
@@ -82,8 +85,32 @@ async function checkRateLimit(
   return { limited: false, remaining: RATE_LIMIT_MAX - count - 1 }
 }
 
+function resolveBucket(
+  rawPath: string,
+  env: Env
+): { bucket: R2Bucket; objectKey: string } | null {
+  const slashIdx = rawPath.indexOf("/")
+  const prefix = slashIdx > 0 ? rawPath.slice(0, slashIdx) : ""
+  const rest = slashIdx > 0 ? rawPath.slice(slashIdx + 1) : rawPath
+
+  switch (prefix) {
+    case "source":
+      return { bucket: env.R2_SOURCE, objectKey: rest }
+    case "assets":
+      return { bucket: env.R2_ASSETS, objectKey: rest }
+    case "downloads":
+      return { bucket: env.R2_DOWNLOADS, objectKey: rest }
+    default:
+      // Legacy fallback: no recognized prefix means old-style key
+      if (env.R2_LEGACY) {
+        return { bucket: env.R2_LEGACY, objectKey: rawPath }
+      }
+      return null
+  }
+}
+
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS })
     }
@@ -93,14 +120,31 @@ export default {
     }
 
     const url = new URL(request.url)
-    const key = decodeURIComponent(url.pathname.slice(1)) // strip leading /
+    const rawPath = decodeURIComponent(url.pathname.slice(1)) // strip leading /
 
-    if (!key) {
+    if (!rawPath) {
       return new Response("Not Found", { status: 404 })
     }
 
+    const resolved = resolveBucket(rawPath, env)
+    if (!resolved) {
+      return new Response("Not Found", { status: 404, headers: CORS_HEADERS })
+    }
+
+    const { bucket, objectKey } = resolved
+    const rangeHeader = request.headers.get("Range")
+
+    // Check Cloudflare edge cache (non-range GET requests only)
+    const cache = caches.default
+    if (request.method === "GET" && !rangeHeader) {
+      const cached = await cache.match(request)
+      if (cached) {
+        return cached
+      }
+    }
+
     let rateLimitRemaining: number | undefined
-    if (!isExemptFromRateLimit(key)) {
+    if (!isExemptFromRateLimit(objectKey)) {
       const { limited, remaining } = await checkRateLimit(request)
       if (limited) {
         return new Response("Too Many Requests", {
@@ -114,19 +158,24 @@ export default {
       rateLimitRemaining = remaining
     }
 
-    const rangeHeader = request.headers.get("Range")
+    // Fetch from the resolved bucket
+    let object = rangeHeader
+      ? await bucket.get(objectKey, { range: parseRange(rangeHeader) })
+      : await bucket.get(objectKey)
 
-    // For Range requests, use R2's native range support
-    const object = rangeHeader
-      ? await env.R2_BUCKET.get(key, { range: parseRange(rangeHeader) })
-      : await env.R2_BUCKET.get(key)
+    // Legacy fallback: if not found in new bucket, try the legacy bucket with the full raw path
+    if (!object && env.R2_LEGACY && bucket !== env.R2_LEGACY) {
+      object = rangeHeader
+        ? await env.R2_LEGACY.get(rawPath, { range: parseRange(rangeHeader) })
+        : await env.R2_LEGACY.get(rawPath)
+    }
 
     if (!object) {
       return new Response("Not Found", { status: 404, headers: CORS_HEADERS })
     }
 
     const contentType =
-      object.httpMetadata?.contentType ?? getMimeType(key)
+      object.httpMetadata?.contentType ?? getMimeType(objectKey)
     const totalSize = object.size
 
     const headers = new Headers({
@@ -140,11 +189,11 @@ export default {
       headers.set("X-RateLimit-Remaining", String(rateLimitRemaining))
     }
 
-    const filename = key.split("/").pop() ?? key
+    const filename = objectKey.split("/").pop() ?? objectKey
     const disposition = filename.endsWith(".zip") ? "attachment" : "inline"
     headers.set("Content-Disposition", `${disposition}; filename="${filename}"`)
 
-    // Respond with 206 Partial Content for Range requests
+    // Respond with 206 Partial Content for Range requests (not cached)
     if (rangeHeader && "range" in object) {
       const { offset, length } = object.range as {
         offset: number
@@ -162,6 +211,13 @@ export default {
       headers.set("Content-Length", totalSize.toString())
     }
 
-    return new Response(object.body, { headers })
+    const response = new Response(object.body, { headers })
+
+    // Cache full GET responses at Cloudflare's edge
+    if (request.method === "GET") {
+      ctx.waitUntil(cache.put(request, response.clone()))
+    }
+
+    return response
   },
 }
