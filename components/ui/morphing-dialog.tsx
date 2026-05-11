@@ -204,8 +204,6 @@ function MorphingDialogContent({
 
   useEffect(() => {
     if (isOpen) {
-      document.documentElement.classList.add("overflow-hidden")
-      document.body.classList.add("overflow-hidden")
       const focusableElements = containerRef.current?.querySelectorAll(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       )
@@ -217,16 +215,37 @@ function MorphingDialogContent({
         ;(focusableElements[0] as HTMLElement).focus()
       }
     } else {
-      document.documentElement.classList.remove("overflow-hidden")
-      document.body.classList.remove("overflow-hidden")
       triggerRef.current?.focus()
     }
+  }, [isOpen, triggerRef])
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const prevent = (e: Event) => {
+      let el = e.target as HTMLElement | null
+      while (el && containerRef.current?.contains(el)) {
+        const { overflowY } = getComputedStyle(el)
+        if (
+          (overflowY === "auto" || overflowY === "scroll") &&
+          el.scrollHeight > el.clientHeight
+        ) {
+          return
+        }
+        el = el.parentElement
+      }
+      e.preventDefault()
+    }
+    window.addEventListener("wheel", prevent, { passive: false })
+    window.addEventListener("touchmove", prevent, { passive: false })
 
     return () => {
-      document.documentElement.classList.remove("overflow-hidden")
-      document.body.classList.remove("overflow-hidden")
+      window.removeEventListener("wheel", prevent)
+      window.removeEventListener("touchmove", prevent)
     }
-  }, [isOpen, triggerRef])
+  }, [isOpen])
 
   useClickOutside(containerRef, () => {
     if (isOpen) {
@@ -385,6 +404,7 @@ export interface MorphingDialogImageProps {
   alt: string
   className?: string
   onError?: React.ReactEventHandler<HTMLImageElement>
+  onLoad?: React.ReactEventHandler<HTMLImageElement>
   src: string
   style?: React.CSSProperties
 }
@@ -395,6 +415,7 @@ function MorphingDialogImage({
   className,
   style,
   onError,
+  onLoad,
 }: MorphingDialogImageProps) {
   const { uniqueId } = useMorphingDialog()
 
@@ -404,6 +425,7 @@ function MorphingDialogImage({
       className={cn(className)}
       layoutId={`dialog-img-${uniqueId}`}
       onError={onError}
+      onLoad={onLoad}
       src={src}
       style={style}
     />

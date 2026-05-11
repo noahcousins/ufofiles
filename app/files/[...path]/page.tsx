@@ -2,6 +2,7 @@ import { asc, count, desc, eq, gt, isNotNull, lt } from "drizzle-orm"
 import type { Metadata } from "next"
 import { db } from "@/lib/db"
 import { files } from "@/lib/db/schema"
+import { getFirstPdfPageUrl } from "@/lib/file-url"
 import { getFile } from "@/lib/r2"
 import { FileViewer } from "./file-viewer"
 
@@ -10,7 +11,6 @@ interface Props {
 }
 
 const FILE_EXTENSION_REGEX = /\.[^/.]+$/
-const PDF_REGEX = /\.pdf$/i
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { path } = await params
@@ -37,11 +37,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   let ogImage: string | undefined = file?.thumbnailUrl ?? undefined
   if (file?.r2Key?.endsWith(".pdf")) {
-    const parts = file.r2Key.split("/")
-    const filename = parts.pop()!
-    const stem = filename.replace(PDF_REGEX, "")
-    const prefix = parts.join("/")
-    ogImage = `${process.env.NEXT_PUBLIC_WORKER_URL ?? ""}/${prefix}/pdf-pages/${stem}/page-001.jpg`
+    ogImage = getFirstPdfPageUrl(file.r2Key)
   }
 
   return {
@@ -71,7 +67,12 @@ async function getPdfPageCount(fileKey: string): Promise<number> {
     return 0
   }
   try {
-    const manifestFile = await getFile("pdf-pages/manifest.json")
+    const parts = fileKey.split("/")
+    const release =
+      parts.length >= 3 && parts[0] === "source" ? parts[1] : "release-1"
+    const manifestKey = `assets/${release}/pdf-pages/manifest.json`
+
+    const manifestFile = await getFile(manifestKey)
     if (!manifestFile) {
       console.warn("[pdf-viewer] manifest not found in R2")
       return 0
@@ -101,6 +102,7 @@ export default async function FileViewerPage({ params }: Props) {
           r2Key: files.r2Key,
           fileSize: files.fileSize,
           documentUrl: files.documentUrl,
+          transcriptR2Key: files.transcriptR2Key,
         })
         .from(files)
         .where(eq(files.r2Key, fileKey))
@@ -145,6 +147,7 @@ export default async function FileViewerPage({ params }: Props) {
       pageCount={pageCount}
       prevFileKey={prevFile?.r2Key ?? null}
       totalFiles={totalResult.count}
+      transcriptR2Key={currentFile?.transcriptR2Key ?? null}
     />
   )
 }

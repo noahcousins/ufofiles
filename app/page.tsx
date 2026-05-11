@@ -15,9 +15,17 @@ export default async function Page({
     typeof params.type === "string"
       ? (params.type as "image" | "video" | "pdf" | "other")
       : undefined
+  const dateRange =
+    typeof params.dateRange === "string"
+      ? (params.dateRange as "2010-now" | "2000s" | "1960-2000" | "pre-1960")
+      : undefined
+  const sortBy =
+    typeof params.sort === "string"
+      ? (params.sort as "newest" | "oldest" | "most-views" | "least-views")
+      : "newest"
 
   void trpc.files.list.prefetchInfinite(
-    { search, agency, type, pageSize: 48 },
+    { search, agency, type, dateRange, pageSize: 48, sortBy },
     { initialCursor: 1 }
   )
   void trpc.files.agencies.prefetch()

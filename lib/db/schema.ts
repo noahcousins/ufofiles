@@ -39,6 +39,8 @@ export const files = pgTable("files", {
   thumbnailUrl: text("thumbnail_url"),
   videoId: text("video_id"),
   description: text("description"),
+  textContent: text("text_content"),
+  transcriptR2Key: text("transcript_r2_key"),
   redacted: boolean("redacted").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })

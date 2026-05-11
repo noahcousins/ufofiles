@@ -83,19 +83,20 @@ export function FileBrowser() {
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
     trpc.files.list.useInfiniteQuery(
       {
-        search: filters.search || undefined,
-        agency: filters.agency || undefined,
+        search: searchParams.get("search") || undefined,
+        agency: searchParams.get("agency") || undefined,
         type:
-          (filters.type as "image" | "video" | "pdf" | "other") || undefined,
+          (searchParams.get("type") as "image" | "video" | "pdf" | "other") ||
+          undefined,
         dateRange:
-          (filters.dateRange as
+          (searchParams.get("dateRange") as
             | "2010-now"
             | "2000s"
             | "1960-2000"
             | "pre-1960") || undefined,
         pageSize: PAGE_SIZE,
         sortBy:
-          (filters.sort as
+          (searchParams.get("sort") as
             | "newest"
             | "oldest"
             | "most-views"
@@ -104,7 +105,9 @@ export function FileBrowser() {
       { getNextPageParam: (lastPage) => lastPage.nextCursor }
     )
 
-  const allItems = data?.pages.flatMap((p) => p.items) ?? []
+  const allItems = (data?.pages.flatMap((p) => p.items) ?? []).filter(
+    (item, _i, arr) => arr.findIndex((f) => f.id === item.id) === _i
+  )
   const total = data?.pages[0]?.total ?? null
 
   useEffect(() => {
