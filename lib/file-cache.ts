@@ -17,7 +17,7 @@ export async function loadManifest(): Promise<PdfManifest> {
     return manifestData
   }
   if (!manifestPromise) {
-    const url = `${getFileUrl("pdf-pages/manifest.json")}?v=${Date.now()}`
+    const url = `${getFileUrl("assets/release-1/pdf-pages/manifest.json")}?v=${Date.now()}`
     manifestPromise = fetch(url)
       .then((r) => {
         if (!r.ok) {
@@ -48,14 +48,6 @@ export function getPageImageUrl(r2Key: string, page: number): string | null {
   }
   const padded = String(page).padStart(3, "0")
   return getFileUrl(`${entry.basePath}/page-${padded}.jpg`)
-}
-
-export function getFirstPageUrl(r2Key: string): string {
-  const parts = r2Key.split("/")
-  const filename = parts.pop()!
-  const stem = filename.replace(/\.pdf$/i, "")
-  const prefix = parts.join("/")
-  return getFileUrl(`${prefix}/pdf-pages/${stem}/page-001.jpg`)
 }
 
 const thumbCache = new Map<string, string>()

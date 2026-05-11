@@ -60,7 +60,7 @@ export const filesRouter = router({
       const page = cursor ?? 1
 
       return withCache(
-        cacheKey("files:list:v5", {
+        cacheKey("files:list:v6", {
           search,
           agency,
           type,
@@ -79,7 +79,8 @@ export const filesRouter = router({
               or(
                 ilike(files.title, `%${search}%`),
                 ilike(files.description, `%${search}%`),
-                ilike(files.incidentLocation, `%${search}%`)
+                ilike(files.incidentLocation, `%${search}%`),
+                ilike(files.textContent, `%${search}%`)
               )
             )
           }
@@ -115,31 +116,51 @@ export const filesRouter = router({
 
           const where = conditions.length > 0 ? and(...conditions) : undefined
 
+          // exclude textContent from responses — too large for list queries
+          const listColumns = {
+            id: files.id,
+            releaseId: files.releaseId,
+            title: files.title,
+            agency: files.agency,
+            releaseDate: files.releaseDate,
+            incidentDate: files.incidentDate,
+            incidentYear: files.incidentYear,
+            incidentLocation: files.incidentLocation,
+            type: files.type,
+            r2Key: files.r2Key,
+            fileSize: files.fileSize,
+            mimeType: files.mimeType,
+            documentUrl: files.documentUrl,
+            thumbnailUrl: files.thumbnailUrl,
+            videoId: files.videoId,
+            description: files.description,
+            transcriptR2Key: files.transcriptR2Key,
+            redacted: files.redacted,
+            createdAt: files.createdAt,
+          }
+
           const sortByViews =
             sortBy === "most-views" || sortBy === "least-views"
 
-          let items: (typeof files.$inferSelect)[]
-          if (sortByViews) {
-            const viewCountExpr = sql<number>`(SELECT COUNT(*)::int FROM events WHERE events.file_id = ${files.id} AND events.type = 'view')`
-            const orderFn = sortBy === "most-views" ? desc : asc
-
-            items = await db
-              .select()
-              .from(files)
-              .where(where)
-              .orderBy(orderFn(viewCountExpr), desc(files.createdAt))
-              .limit(pageSize)
-              .offset((page - 1) * pageSize)
-          } else {
-            const orderFn = sortBy === "newest" ? desc : asc
-            items = await db
-              .select()
-              .from(files)
-              .where(where)
-              .orderBy(orderFn(files.createdAt))
-              .limit(pageSize)
-              .offset((page - 1) * pageSize)
-          }
+          const items = sortByViews
+            ? await (() => {
+                const viewCountExpr = sql<number>`(SELECT COUNT(*)::int FROM events WHERE events.file_id = ${files.id} AND events.type = 'view')`
+                const orderFn = sortBy === "most-views" ? desc : asc
+                return db
+                  .select(listColumns)
+                  .from(files)
+                  .where(where)
+                  .orderBy(orderFn(viewCountExpr), desc(files.createdAt))
+                  .limit(pageSize)
+                  .offset((page - 1) * pageSize)
+              })()
+            : await db
+                .select(listColumns)
+                .from(files)
+                .where(where)
+                .orderBy((sortBy === "newest" ? desc : asc)(files.createdAt))
+                .limit(pageSize)
+                .offset((page - 1) * pageSize)
 
           const [total] = await db
             .select({ count: count() })
@@ -162,7 +183,27 @@ export const filesRouter = router({
     .query(async ({ input }) =>
       withCache(cacheKey("files:byId", input), ONE_DAY, async () => {
         const [file] = await db
-          .select()
+          .select({
+            id: files.id,
+            releaseId: files.releaseId,
+            title: files.title,
+            agency: files.agency,
+            releaseDate: files.releaseDate,
+            incidentDate: files.incidentDate,
+            incidentYear: files.incidentYear,
+            incidentLocation: files.incidentLocation,
+            type: files.type,
+            r2Key: files.r2Key,
+            fileSize: files.fileSize,
+            mimeType: files.mimeType,
+            documentUrl: files.documentUrl,
+            thumbnailUrl: files.thumbnailUrl,
+            videoId: files.videoId,
+            description: files.description,
+            transcriptR2Key: files.transcriptR2Key,
+            redacted: files.redacted,
+            createdAt: files.createdAt,
+          })
           .from(files)
           .where(eq(files.id, input.id))
           .limit(1)

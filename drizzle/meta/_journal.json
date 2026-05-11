@@ -15,6 +15,13 @@
       "when": 1778291878735,
       "tag": "0001_deep_red_wolf",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778376327200,
+      "tag": "0002_steep_moonstone",
+      "breakpoints": true
     }
   ]
 }

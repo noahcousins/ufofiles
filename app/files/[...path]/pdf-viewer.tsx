@@ -1,18 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { getFileUrl } from "@/lib/file-url"
-
-const PDF_REGEX = /\.pdf$/i
-
-function getPageUrl(r2Key: string, page: number): string {
-  const parts = r2Key.split("/")
-  const filename = parts.pop()!
-  const stem = filename.replace(PDF_REGEX, "")
-  const prefix = parts.join("/")
-  const padded = String(page).padStart(3, "0")
-  return getFileUrl(`${prefix}/pdf-pages/${stem}/page-${padded}.jpg`)
-}
+import { getPdfPageUrl } from "@/lib/file-url"
 
 export function PdfViewer({
   r2Key,
@@ -87,7 +76,7 @@ export function PdfViewer({
                 className="w-full shadow-sm"
                 decoding={page <= 3 ? "sync" : "async"}
                 loading={page <= 3 ? "eager" : "lazy"}
-                src={getPageUrl(r2Key, page)}
+                src={getPdfPageUrl(r2Key, page)}
               />
             </div>
           )

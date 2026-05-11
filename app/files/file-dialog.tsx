@@ -6,6 +6,7 @@ import {
   CaretRightIcon,
   CornersInIcon,
   CornersOutIcon,
+  FileTextIcon,
   Pause,
   Play,
   ShareNetworkIcon,
@@ -26,7 +27,7 @@ import {
   MorphingDialogTitle,
   useMorphingDialog,
 } from "@/components/ui/morphing-dialog"
-import { getFileUrl } from "@/lib/file-url"
+import { getFileUrl, getStreamingVideoUrl } from "@/lib/file-url"
 import { cn, formatFileSize } from "@/lib/utils"
 import {
   type FileItem,
@@ -240,7 +241,7 @@ function DialogVideoPlayer({
     }
   }, [pctFromX, duration])
 
-  const src = getFileUrl(r2Key)
+  const src = getStreamingVideoUrl(r2Key)
   const realPct = duration > 0 ? (currentTime / duration) * 100 : 0
   const pct = dragPct === null ? realPct : dragPct * 100
 
@@ -597,10 +598,72 @@ function DescriptionWithExpand({ description }: { description: string }) {
   )
 }
 
+function ProgressiveDialogImage({
+  alt,
+  src,
+  thumbSrc,
+}: {
+  alt: string
+  src: string
+  thumbSrc?: string | null
+}) {
+  const { isOpen } = useMorphingDialog()
+  const [loaded, setLoaded] = useState(false)
+  const [animationDone, setAnimationDone] = useState(false)
+
+  useEffect(() => {
+    setLoaded(false)
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) {
+      setAnimationDone(false)
+      return
+    }
+    const timer = setTimeout(() => setAnimationDone(true), 400)
+    return () => clearTimeout(timer)
+  }, [isOpen])
+
+  if (!thumbSrc) {
+    return (
+      <MorphingDialogImage
+        alt={alt}
+        className="max-h-[50vh] w-full cursor-pointer bg-black/10 object-contain"
+        src={src}
+      />
+    )
+  }
+
+  return (
+    <div className="relative overflow-hidden">
+      <MorphingDialogImage
+        alt={alt}
+        className={cn(
+          "max-h-[50vh] w-full cursor-pointer bg-black/10 object-contain",
+          !loaded && "blur-[2px]"
+        )}
+        src={thumbSrc}
+      />
+      {animationDone && (
+        <img
+          alt={alt}
+          className={cn(
+            "absolute inset-0 h-full w-full cursor-pointer object-contain transition-opacity duration-300",
+            loaded ? "opacity-100" : "opacity-0"
+          )}
+          onLoad={() => setLoaded(true)}
+          src={src}
+        />
+      )}
+    </div>
+  )
+}
+
 export function FileDialog({
   file,
   viewData,
   previewSrc,
+  thumbSrc,
   category,
   fileUrl,
   onNavigate,
@@ -612,6 +675,7 @@ export function FileDialog({
   file: FileItem
   viewData?: ViewData
   previewSrc: string | null
+  thumbSrc?: string | null
   category: "PDF" | "VID" | "IMG"
   fileUrl: string
   onNavigate: (fileId: number) => void
@@ -716,10 +780,10 @@ export function FileDialog({
               <DialogVideoPlayer r2Key={file.r2Key} poster={previewSrc} />
             ) : previewSrc ? (
               <Link href={fileUrl} onClick={(e) => e.stopPropagation()}>
-                <MorphingDialogImage
+                <ProgressiveDialogImage
                   alt={file.title}
-                  className="max-h-[50vh] w-full cursor-pointer bg-black/10 object-contain transition-opacity hover:opacity-90"
                   src={previewSrc}
+                  thumbSrc={thumbSrc}
                 />
               </Link>
             ) : (
@@ -733,7 +797,7 @@ export function FileDialog({
             )}
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-3">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-5 pb-3">
             <MorphingDialogTitle className="break-words font-semibold text-base leading-snug">
               {file.title}
             </MorphingDialogTitle>
@@ -808,6 +872,24 @@ export function FileDialog({
               >
                 <Button size="lg" variant="default">
                   Download
+                </Button>
+              </a>
+            )}
+            {file.transcriptR2Key && (
+              <a
+                download
+                href={getFileUrl(file.transcriptR2Key)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  posthog.capture("transcript_downloaded", {
+                    file_id: file.id,
+                    file_title: file.title,
+                  })
+                }}
+              >
+                <Button className="gap-1.5" size="sm" variant="outline">
+                  <FileTextIcon className="size-3.5" />
+                  <span className="hidden sm:inline">Transcript</span>
                 </Button>
               </a>
             )}
