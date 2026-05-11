@@ -5,7 +5,19 @@
   "compatibility_date": "2025-05-01",
   "r2_buckets": [
     {
-      "binding": "R2_BUCKET",
+      "binding": "R2_SOURCE",
+      "bucket_name": "ufofiles-source"
+    },
+    {
+      "binding": "R2_ASSETS",
+      "bucket_name": "ufofiles-assets"
+    },
+    {
+      "binding": "R2_DOWNLOADS",
+      "bucket_name": "ufofiles-downloads"
+    },
+    {
+      "binding": "R2_LEGACY",
       "bucket_name": "ufofiles"
     }
   ]
