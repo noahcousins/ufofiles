@@ -137,7 +137,22 @@ export function FileBrowser() {
   )
 
   const [agencies] = trpc.files.agencies.useSuspenseQuery()
-  const [typeCounts] = trpc.files.typeCounts.useSuspenseQuery()
+
+  const typeCountFilters = {
+    search: searchParams.get("search") || undefined,
+    agency: searchParams.get("agency") || undefined,
+    dateRange:
+      (searchParams.get("dateRange") as
+        | "2010-now"
+        | "2000s"
+        | "1960-2000"
+        | "pre-1960") || undefined,
+  }
+  const { data: typeCounts, isPlaceholderData: typeCountsStale } =
+    trpc.files.typeCounts.useQuery(typeCountFilters, {
+      placeholderData: keepPreviousData,
+    })
+
   const [dateRangeCounts] = trpc.files.dateRangeCounts.useSuspenseQuery()
 
   return (
@@ -174,6 +189,7 @@ export function FileBrowser() {
               posthog.capture("date_range_filter_applied", { date_range: val })
             }
           }}
+          onMobileSearchClose={() => setMobileSearchOpen(false)}
           onSearchChange={handleSearchChange}
           onSortChange={(val) => {
             setFilters({ sort: val })
@@ -187,9 +203,9 @@ export function FileBrowser() {
           }}
           searchInput={searchInput}
           sort={filters.sort}
-          totalDocuments={total}
           type={filters.type}
-          typeCounts={typeCounts}
+          typeCounts={typeCounts ?? []}
+          typeCountsLoading={typeCountsStale}
         />
       </Header>
 
