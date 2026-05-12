@@ -85,7 +85,7 @@ export async function withCache<T>(
 export async function bustCache(): Promise<void> {
   const client = getRedis()
   if (!client) {
-    console.warn("Redis not configured — skipping cache bust")
+    console.warn("Redis not configured - skipping cache bust")
     return
   }
   const newVersion = await client.incr(VERSION_KEY)

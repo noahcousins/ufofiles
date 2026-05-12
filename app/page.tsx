@@ -29,7 +29,7 @@ export default async function Page({
     { initialCursor: 1 }
   )
   void trpc.files.agencies.prefetch()
-  void trpc.files.typeCounts.prefetch()
+  void trpc.files.typeCounts.prefetch({ search, agency, dateRange })
   void trpc.files.dateRangeCounts.prefetch()
 
   return (

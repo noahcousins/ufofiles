@@ -27,6 +27,59 @@ const DATE_RANGES: Record<string, [number, number]> = {
   "pre-1960": [0, 1959],
 }
 
+/** Shared filter-condition builder used by list, typeCounts, etc. */
+function buildFilterConditions(input: {
+  search?: string
+  agency?: string
+  type?: "image" | "video" | "pdf" | "other"
+  dateRange?: "2010-now" | "2000s" | "1960-2000" | "pre-1960"
+  releaseId?: number
+}) {
+  const conditions = []
+
+  if (input.search) {
+    conditions.push(
+      or(
+        ilike(files.title, `%${input.search}%`),
+        ilike(files.description, `%${input.search}%`),
+        ilike(files.incidentLocation, `%${input.search}%`),
+        ilike(files.textContent, `%${input.search}%`)
+      )
+    )
+  }
+
+  if (input.agency) {
+    conditions.push(ilike(files.agency, `%${input.agency}%`))
+  }
+
+  if (input.type) {
+    const mimePrefixes: Record<string, string> = {
+      image: "image/%",
+      video: "video/%",
+      pdf: "application/pdf",
+      other: "application/octet-stream",
+    }
+    const pattern = mimePrefixes[input.type]
+    if (input.type === "pdf" || input.type === "other") {
+      conditions.push(eq(files.mimeType, pattern))
+    } else {
+      conditions.push(ilike(files.mimeType, pattern))
+    }
+  }
+
+  if (input.dateRange) {
+    const [min, max] = DATE_RANGES[input.dateRange]
+    conditions.push(gte(files.incidentYear, min))
+    conditions.push(lte(files.incidentYear, max))
+  }
+
+  if (input.releaseId) {
+    conditions.push(eq(files.releaseId, input.releaseId))
+  }
+
+  return conditions
+}
+
 export const filesRouter = router({
   list: rateLimitedProcedure("query")
     .input(
@@ -46,77 +99,28 @@ export const filesRouter = router({
       })
     )
     .query(async ({ input }) => {
-      const {
-        search,
-        agency,
-        type,
-        dateRange,
-        releaseId,
-        cursor,
-        pageSize = 48,
-        sortBy = "newest",
-      } = input
+      const { cursor, pageSize = 48, sortBy = "newest" } = input
 
       const page = cursor ?? 1
 
       return withCache(
         cacheKey("files:list:v6", {
-          search,
-          agency,
-          type,
-          dateRange,
-          releaseId,
+          search: input.search,
+          agency: input.agency,
+          type: input.type,
+          dateRange: input.dateRange,
+          releaseId: input.releaseId,
           page,
           pageSize,
           sortBy,
         }),
         SIX_HOURS,
         async () => {
-          const conditions = []
-
-          if (search) {
-            conditions.push(
-              or(
-                ilike(files.title, `%${search}%`),
-                ilike(files.description, `%${search}%`),
-                ilike(files.incidentLocation, `%${search}%`),
-                ilike(files.textContent, `%${search}%`)
-              )
-            )
-          }
-
-          if (agency) {
-            conditions.push(ilike(files.agency, `%${agency}%`))
-          }
-
-          if (type) {
-            const mimePrefixes: Record<string, string> = {
-              image: "image/%",
-              video: "video/%",
-              pdf: "application/pdf",
-              other: "application/octet-stream",
-            }
-            const pattern = mimePrefixes[type]
-            if (type === "pdf" || type === "other") {
-              conditions.push(eq(files.mimeType, pattern))
-            } else {
-              conditions.push(ilike(files.mimeType, pattern))
-            }
-          }
-
-          if (dateRange) {
-            const [min, max] = DATE_RANGES[dateRange]
-            conditions.push(gte(files.incidentYear, min))
-            conditions.push(lte(files.incidentYear, max))
-          }
-
-          if (releaseId) {
-            conditions.push(eq(files.releaseId, releaseId))
-          }
+          const conditions = buildFilterConditions(input)
 
           const where = conditions.length > 0 ? and(...conditions) : undefined
 
-          // exclude textContent from responses — too large for list queries
+          // exclude textContent from responses - too large for list queries
           const listColumns = {
             id: files.id,
             releaseId: files.releaseId,
@@ -227,29 +231,48 @@ export const filesRouter = router({
     })
   ),
 
-  typeCounts: rateLimitedProcedure("query").query(async () =>
-    withCache("files:mimeTypeCounts:v3", ONE_DAY, async () => {
-      const category = sql<string>`
-        CASE
-          WHEN ${files.mimeType} LIKE 'image/%' THEN 'image'
-          WHEN ${files.mimeType} LIKE 'video/%' THEN 'video'
-          WHEN ${files.mimeType} = 'application/pdf' THEN 'pdf'
-          ELSE 'other'
-        END
-      `.as("file_type")
-
-      const result = await db
-        .select({
-          type: category,
-          count: count(),
+  typeCounts: rateLimitedProcedure("query")
+    .input(
+      z
+        .object({
+          search: z.string().optional(),
+          agency: z.string().optional(),
+          dateRange: z
+            .enum(["2010-now", "2000s", "1960-2000", "pre-1960"])
+            .optional(),
         })
-        .from(files)
-        .where(sql`${files.mimeType} IS NOT NULL`)
-        .groupBy(category)
+        .optional()
+    )
+    .query(async ({ input }) =>
+      withCache(
+        cacheKey("files:mimeTypeCounts:v4", input),
+        SIX_HOURS,
+        async () => {
+          const category = sql<string>`
+          CASE
+            WHEN ${files.mimeType} LIKE 'image/%' THEN 'image'
+            WHEN ${files.mimeType} LIKE 'video/%' THEN 'video'
+            WHEN ${files.mimeType} = 'application/pdf' THEN 'pdf'
+            ELSE 'other'
+          END
+        `.as("file_type")
 
-      return result
-    })
-  ),
+          const conditions = buildFilterConditions(input ?? {})
+          conditions.push(sql`${files.mimeType} IS NOT NULL`)
+
+          const result = await db
+            .select({
+              type: category,
+              count: count(),
+            })
+            .from(files)
+            .where(and(...conditions))
+            .groupBy(category)
+
+          return result
+        }
+      )
+    ),
 
   dateRangeCounts: rateLimitedProcedure("query").query(async () =>
     withCache("files:dateRangeCounts:v1", ONE_DAY, async () => {
