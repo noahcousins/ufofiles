@@ -14,7 +14,10 @@ const nextConfig = {
         source: "/ingest/:path*",
         destination: "https://us.i.posthog.com/:path*",
       },
-      // app redirects
+    ]
+  },
+  async redirects() {
+    return [
       {
         source: "/globe",
         destination: "/map",
