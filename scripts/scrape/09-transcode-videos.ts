@@ -56,7 +56,7 @@ export function main() {
       const inputSize = statSync(inputPath).size
       const inputMb = (inputSize / 1024 / 1024).toFixed(1)
       process.stdout.write(
-        `[${i + 1}/${stats.total}] ${filename} (${inputMb} MB) — transcoding...`
+        `[${i + 1}/${stats.total}] ${filename} (${inputMb} MB) - transcoding...`
       )
 
       execFileSync(

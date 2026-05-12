@@ -15,7 +15,7 @@ const ARCHIVES_DIR = join(import.meta.dirname ?? ".", "..", "..", "archives")
 const ZIP_RE = /\.zip$/i
 const MAX_RETRIES = 3
 /**
- * 200 MB parts, sequential (queueSize 1) — minimises open connections
+ * 200 MB parts, sequential (queueSize 1) - minimises open connections
  * to avoid the SSL "bad record mac" errors on long-lived transfers.
  */
 const PART_SIZE = 200 * 1024 * 1024
@@ -111,7 +111,7 @@ async function uploadWithRetry(
           Body: createReadStream(filePath),
           ContentType: "application/zip",
         },
-        // Sequential upload — one part at a time to avoid SSL connection issues
+        // Sequential upload - one part at a time to avoid SSL connection issues
         queueSize: 1,
         partSize: PART_SIZE,
       })
@@ -130,7 +130,7 @@ async function uploadWithRetry(
       process.stdout.write("\n")
       const msg = err instanceof Error ? err.message.slice(0, 120) : String(err)
       if (attempt < MAX_RETRIES) {
-        info(`  Attempt ${attempt} failed: ${msg} — retrying...`)
+        info(`  Attempt ${attempt} failed: ${msg} - retrying...`)
       } else {
         info(`  FAIL after ${MAX_RETRIES} attempts: ${msg}`)
       }
@@ -154,7 +154,7 @@ async function syncDb(
     .limit(1)
 
   if (!release) {
-    info(`Release "${RELEASE}" not found — skipping DB sync`)
+    info(`Release "${RELEASE}" not found - skipping DB sync`)
     await client.end()
     return { inserted: 0, skipped: 0 }
   }
@@ -165,7 +165,7 @@ async function syncDb(
   for (const { filename, key, size } of uploaded) {
     const meta = ZIP_META[filename]
     if (!meta) {
-      info(`  No metadata for ${filename} — skipping DB row`)
+      info(`  No metadata for ${filename} - skipping DB row`)
       continue
     }
 

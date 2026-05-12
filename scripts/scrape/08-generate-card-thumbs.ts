@@ -32,7 +32,7 @@ interface ThumbTask {
 function collectTasks(): ThumbTask[] {
   const tasks: ThumbTask[] = []
 
-  // pdfs — use first page image from pdf-pages/{stem}/page-001.jpg
+  // pdfs - use first page image from pdf-pages/{stem}/page-001.jpg
   try {
     for (const stem of readdirSync(PDF_PREVIEW_DIR)) {
       const stemDir = join(PDF_PREVIEW_DIR, stem)
@@ -49,7 +49,7 @@ function collectTasks(): ThumbTask[] {
     // pdf-pages may not exist
   }
 
-  // videos — use thumbnail from previews/{stem}_thumb.jpg
+  // videos - use thumbnail from previews/{stem}_thumb.jpg
   try {
     for (const file of readdirSync(VIDEO_PREVIEW_DIR)) {
       if (!file.endsWith("_thumb.jpg")) {
@@ -66,7 +66,7 @@ function collectTasks(): ThumbTask[] {
     // previews may not exist
   }
 
-  // images — use source files directly
+  // images - use source files directly
   for (const file of readdirSync(SOURCE_DIR)) {
     if (!IMG_EXT_RE.test(file)) {
       continue

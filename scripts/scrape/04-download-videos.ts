@@ -42,7 +42,7 @@ function resolveVideos(records: UfoRecord[]): {
       nameOwners.set(base, r.videoId)
       resolved.set(r.videoId, base)
     } else if (owner !== r.videoId) {
-      // collision — suffix this one (and retroactively suffix the first owner too)
+      // collision - suffix this one (and retroactively suffix the first owner too)
       if (resolved.get(owner) === base) {
         resolved.set(owner, `${base}_vid${owner}`)
       }

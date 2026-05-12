@@ -7,7 +7,7 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatFileSize(bytes: number | null): string {
   if (!bytes) {
-    return "—"
+    return "-"
   }
   const k = 1024
   const sizes = ["B", "KB", "MB", "GB"]

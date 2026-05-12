@@ -52,7 +52,7 @@ export function main() {
 
     try {
       process.stdout.write(
-        `[${i + 1}/${stats.total}] ${filename} — extracting...`
+        `[${i + 1}/${stats.total}] ${filename} - extracting...`
       )
 
       execFileSync("pdftotext", [inputPath, outputPath], { stdio: "pipe" })
@@ -69,7 +69,7 @@ export function main() {
       const meaningful = raw.replace(JUNK_RE, "")
       if (meaningful.length < MIN_TEXT_BYTES) {
         unlinkSync(outputPath)
-        process.stdout.write(" junk only (scanned image?) — removed\n")
+        process.stdout.write(" junk only (scanned image?) - removed\n")
         stats.failed++
         continue
       }

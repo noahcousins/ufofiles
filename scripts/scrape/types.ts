@@ -1,4 +1,4 @@
-/** Core record shape — matches the JSON consumed by seed-db.ts */
+/** Core record shape - matches the JSON consumed by seed-db.ts */
 export interface UfoRecord {
   agency: string
   description: string

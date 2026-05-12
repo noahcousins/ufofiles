@@ -95,7 +95,7 @@ export function main() {
 
     try {
       process.stdout.write(
-        `[${i + 1}/${stats.total}] ${filename} — rendering...`
+        `[${i + 1}/${stats.total}] ${filename} - rendering...`
       )
 
       // render all pages as JPEG
