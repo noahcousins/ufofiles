@@ -100,7 +100,7 @@ export function FileBrowser() {
             | "newest"
             | "oldest"
             | "most-views"
-            | "least-views") || "newest",
+            | "least-views") || "most-views",
       },
       { getNextPageParam: (lastPage) => lastPage.nextCursor }
     )

@@ -116,7 +116,7 @@ export function FileFilters({
     agency ||
     type ||
     dateRange ||
-    (sort && sort !== "newest")
+    (sort && sort !== "most-views")
   )
 
   const activeFilterCount = (agency ? 1 : 0) + (dateRange ? 1 : 0)
@@ -541,10 +541,10 @@ export function FileFilters({
                 alignItemWithTrigger={false}
                 className="font-mono text-xs"
               >
-                <SelectItem value="newest">Newest</SelectItem>
-                <SelectItem value="oldest">Oldest</SelectItem>
                 <SelectItem value="most-views">Most views</SelectItem>
                 <SelectItem value="least-views">Least views</SelectItem>
+                <SelectItem value="newest">Newest</SelectItem>
+                <SelectItem value="oldest">Oldest</SelectItem>
               </SelectContent>
             </Select>
           </div>
