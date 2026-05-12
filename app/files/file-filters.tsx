@@ -531,10 +531,10 @@ export function FileFilters({
             <Select
               modal={false}
               onValueChange={(val) => val && onSortChange(val)}
-              value={sort || "newest"}
+              value={sort || "most-views"}
             >
               <SelectTrigger className="h-7 w-fit border-none font-mono text-xs">
-                <SelectValue>{SORT_LABELS[sort] ?? "Newest"}</SelectValue>
+                <SelectValue>{SORT_LABELS[sort] ?? "Most views"}</SelectValue>
               </SelectTrigger>
               <SelectContent
                 align="end"

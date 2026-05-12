@@ -95,11 +95,11 @@ export const filesRouter = router({
         pageSize: z.number().min(1).max(100).default(48),
         sortBy: z
           .enum(["newest", "oldest", "most-views", "least-views"])
-          .default("newest"),
+          .default("most-views"),
       })
     )
     .query(async ({ input }) => {
-      const { cursor, pageSize = 48, sortBy = "newest" } = input
+      const { cursor, pageSize = 48, sortBy = "most-views" } = input
 
       const page = cursor ?? 1
 
