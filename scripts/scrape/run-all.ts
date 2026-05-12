@@ -74,7 +74,7 @@ async function runAll() {
       const e = err instanceof Error ? err : new Error(String(err))
       error(`${step.name} failed: ${e.message}`)
       results.push({ name: step.name, ok: false, error: e })
-      // Stop on failure — downstream steps depend on earlier ones
+      // Stop on failure - downstream steps depend on earlier ones
       break
     }
   }

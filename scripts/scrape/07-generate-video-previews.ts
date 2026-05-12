@@ -125,7 +125,7 @@ function generateGif(inputPath: string, outputPath: string): boolean {
     try {
       unlinkSync(palettePath)
     } catch {
-      // ignore — may not exist if pass 1 failed
+      // ignore - may not exist if pass 1 failed
     }
   }
 }
@@ -176,11 +176,11 @@ export function main() {
     // generate thumbnail if missing
     if (thumbOk) {
       process.stdout.write(
-        `[${i + 1}/${stats.total}] ${filename} — thumb exists`
+        `[${i + 1}/${stats.total}] ${filename} - thumb exists`
       )
     } else {
       process.stdout.write(
-        `[${i + 1}/${stats.total}] ${filename} — thumbnail...`
+        `[${i + 1}/${stats.total}] ${filename} - thumbnail...`
       )
       thumbOk = generateThumbnail(inputPath, thumbPath)
       if (thumbOk) {

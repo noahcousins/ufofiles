@@ -5,12 +5,12 @@ import { useSearchParams } from "next/navigation"
 import { parseAsInteger, parseAsString, useQueryStates } from "nuqs"
 import posthog from "posthog-js"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { Header } from "@/components/layout/header"
 import { Spinner } from "@/components/ui/spinner"
 import { loadManifest } from "@/lib/file-cache"
 import { trpc } from "@/lib/trpc/client"
 import { FileCard, SkeletonCard } from "./file-card"
 import { FileFilters, FileFiltersSkeleton } from "./file-filters"
-import { SiteHeader } from "./site-header"
 
 const PAGE_SIZE = 48
 
@@ -30,6 +30,19 @@ export function FileBrowser() {
   })
 
   const searchParams = useSearchParams()
+
+  // Mobile search slide-open state
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
+
+  // Open search if navigated here with ?searchOpen=1 (from other pages)
+  useEffect(() => {
+    if (searchParams.get("searchOpen") === "1") {
+      setMobileSearchOpen(true)
+      const url = new URL(window.location.href)
+      url.searchParams.delete("searchOpen")
+      window.history.replaceState({}, "", url.toString())
+    }
+  }, [searchParams])
 
   useEffect(() => {
     loadManifest()
@@ -124,17 +137,36 @@ export function FileBrowser() {
   )
 
   const [agencies] = trpc.files.agencies.useSuspenseQuery()
-  const [typeCounts] = trpc.files.typeCounts.useSuspenseQuery()
+
+  const typeCountFilters = {
+    search: searchParams.get("search") || undefined,
+    agency: searchParams.get("agency") || undefined,
+    dateRange:
+      (searchParams.get("dateRange") as
+        | "2010-now"
+        | "2000s"
+        | "1960-2000"
+        | "pre-1960") || undefined,
+  }
+  const { data: typeCounts, isPlaceholderData: typeCountsStale } =
+    trpc.files.typeCounts.useQuery(typeCountFilters, {
+      placeholderData: keepPreviousData,
+    })
+
   const [dateRangeCounts] = trpc.files.dateRangeCounts.useSuspenseQuery()
 
   return (
     <>
-      <SiteHeader>
+      <Header
+        mobileSearchOpen={mobileSearchOpen}
+        onMobileSearchToggle={() => setMobileSearchOpen((prev) => !prev)}
+      >
         <FileFilters
           agencies={agencies}
           agency={filters.agency}
           dateRange={filters.dateRange}
           dateRangeCounts={dateRangeCounts}
+          mobileSearchOpen={mobileSearchOpen}
           onAgencyChange={(val) => {
             setFilters({ agency: val })
             if (val) {
@@ -157,6 +189,7 @@ export function FileBrowser() {
               posthog.capture("date_range_filter_applied", { date_range: val })
             }
           }}
+          onMobileSearchClose={() => setMobileSearchOpen(false)}
           onSearchChange={handleSearchChange}
           onSortChange={(val) => {
             setFilters({ sort: val })
@@ -170,15 +203,15 @@ export function FileBrowser() {
           }}
           searchInput={searchInput}
           sort={filters.sort}
-          totalDocuments={total}
           type={filters.type}
-          typeCounts={typeCounts}
+          typeCounts={typeCounts ?? []}
+          typeCountsLoading={typeCountsStale}
         />
-      </SiteHeader>
+      </Header>
 
       <div className="mx-auto max-w-6xl px-4 py-6">
         {isLoading ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:grid-cols-4">
             {Array.from({ length: PAGE_SIZE / 4 }).map((_, i) => (
               <SkeletonCard key={i} />
             ))}
@@ -188,7 +221,7 @@ export function FileBrowser() {
             No files found.
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:grid-cols-4">
             {allItems.map((file, index) => (
               <FileCard
                 currentIndex={index}
@@ -236,12 +269,12 @@ export function FileBrowser() {
 export function FileBrowserSkeleton() {
   return (
     <>
-      <SiteHeader>
+      <Header>
         <FileFiltersSkeleton />
-      </SiteHeader>
+      </Header>
 
       <div className="mx-auto max-w-6xl px-4 py-6">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: PAGE_SIZE / 4 }).map((_, i) => (
             <SkeletonCard key={i} />
           ))}

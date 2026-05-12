@@ -21,18 +21,27 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: "[ufo]files",
+  title: "[ufo]files - Browse Government UFO & UAP Files",
   description:
-    "Explore declassified files about UFOs, UAPs, and extraterrestrial life.",
+    "Search, browse, and download released government files on UFOs, UAPs, sightings, reports, videos, and related documents.",
   keywords: [
-    "UFOs",
-    "UAPs",
-    "extraterrestrial life",
-    "declassified files",
     "UFO files",
+    "UAP files",
+    "government UFO files",
+    "government UAP files",
+    "declassified UFO documents",
+    "UFO documents",
+    "UAP documents",
     "unidentified anomalous phenomena",
     "unidentified aerial phenomena",
     "unidentified flying objects",
+    "UFO sightings",
+    "UAP sightings",
+    "UFO videos",
+    "UAP reports",
+    "NASA UFO files",
+    "FBI UFO files",
+    "Department of State UFO files",
   ],
 }
 

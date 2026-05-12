@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url"
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 // ---------------------------------------------------------------------------
-// Paths (relative to project root — two levels up from scripts/scrape/)
+// Paths (relative to project root - two levels up from scripts/scrape/)
 // ---------------------------------------------------------------------------
 export const PROJECT_ROOT = join(__dirname, "..", "..")
 export const RECORDS_PATH = join(PROJECT_ROOT, "ufo-records.json")

@@ -43,7 +43,7 @@ function resolveDocs(records: UfoRecord[]): {
       nameOwners.set(base + ext, r.documentUrl)
       resolved.set(r.documentUrl, base + ext)
     } else if (owner !== r.documentUrl) {
-      // collision — suffix both
+      // collision - suffix both
       if (resolved.get(owner) === base + ext) {
         resolved.set(owner, `${base}_doc1${ext}`)
       }
