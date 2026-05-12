@@ -19,7 +19,7 @@ const filterParsers = {
   agency: parseAsString.withDefault(""),
   type: parseAsString.withDefault(""),
   dateRange: parseAsString.withDefault(""),
-  sort: parseAsString.withDefault("newest"),
+  sort: parseAsString.withDefault("most-views"),
   fileId: parseAsInteger.withOptions({ history: "push" }),
 }
 

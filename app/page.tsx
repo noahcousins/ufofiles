@@ -22,7 +22,7 @@ export default async function Page({
   const sortBy =
     typeof params.sort === "string"
       ? (params.sort as "newest" | "oldest" | "most-views" | "least-views")
-      : "newest"
+      : "most-views"
 
   void trpc.files.list.prefetchInfinite(
     { search, agency, type, dateRange, pageSize: 48, sortBy },
