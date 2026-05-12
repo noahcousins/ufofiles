@@ -12,9 +12,11 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 import { Logo } from "@/components/ui/logo"
+import { Separator } from "@/components/ui/separator"
 import {
   Sheet,
   SheetContent,
+  SheetHeader,
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
@@ -23,7 +25,7 @@ import { cn } from "@/lib/utils"
 const navLinks = [
   { href: "/", label: "Search", icon: MagnifyingGlassIcon },
   { href: "/globe", label: "Incident Map", icon: GlobeHemisphereWest },
-  { href: "/releases", label: "Downloads", icon: DownloadSimple },
+  { href: "/releases", label: "Releases", icon: DownloadSimple },
 ]
 
 const socialLinks = [
@@ -123,8 +125,11 @@ export function Header({
               <ListIcon className="size-5" />
             </SheetTrigger>
             <SheetContent className="w-72 rounded-none" side="right">
-              <SheetTitle className="sr-only">Navigation</SheetTitle>
-              <nav className="flex flex-col gap-0.5 p-4 pt-12">
+              <SheetHeader>
+                <Logo className="h-6" />
+                <SheetTitle className="sr-only">Navigation</SheetTitle>
+              </SheetHeader>
+              <nav className="flex flex-col gap-0.5 p-4">
                 {navLinks.map(({ href, label, icon: Icon }) => (
                   <Link
                     className={cn(
@@ -140,22 +145,25 @@ export function Header({
                   </Link>
                 ))}
               </nav>
-              <div className="mt-auto border-border/40 border-t p-4">
-                <div className="flex items-center gap-2">
-                  {socialLinks.map(({ href, label, icon: Icon }) => (
-                    <Link
-                      aria-label={label}
-                      className="inline-flex size-10 items-center justify-center text-muted-foreground transition-all hover:bg-muted hover:text-foreground active:translate-y-px"
-                      href={href}
-                      key={href}
-                      rel="noopener noreferrer"
-                      target="_blank"
-                    >
-                      <Icon className="size-5" />
-                    </Link>
-                  ))}
-                </div>
-              </div>
+              <Separator className="w-full" />
+              <nav className="flex flex-col gap-0.5 p-4">
+                {socialLinks.map(({ href, label, icon: Icon }) => (
+                  <Link
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-3 font-medium text-lg text-muted-foreground transition-all hover:bg-muted hover:text-foreground active:translate-y-px",
+                      pathname === href && "bg-muted text-foreground"
+                    )}
+                    href={href}
+                    key={href}
+                    onClick={() => setOpen(false)}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    <Icon className="size-8" />
+                    {label}
+                  </Link>
+                ))}
+              </nav>
             </SheetContent>
           </Sheet>
         </div>
