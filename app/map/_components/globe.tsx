@@ -493,7 +493,7 @@ export function Globe() {
           <div className="rounded-full bg-foreground/10 px-4 py-2 font-medium text-foreground text-sm backdrop-blur-sm">
             {hoveredMeta.name}
             <span className="ml-1.5 text-muted-foreground">
-              — {hoveredMeta.count} file{hoveredMeta.count === 1 ? "" : "s"}
+              - {hoveredMeta.count} file{hoveredMeta.count === 1 ? "" : "s"}
             </span>
           </div>
         </div>

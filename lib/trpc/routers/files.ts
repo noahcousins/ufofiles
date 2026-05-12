@@ -99,11 +99,7 @@ export const filesRouter = router({
       })
     )
     .query(async ({ input }) => {
-      const {
-        cursor,
-        pageSize = 48,
-        sortBy = "newest",
-      } = input
+      const { cursor, pageSize = 48, sortBy = "newest" } = input
 
       const page = cursor ?? 1
 
@@ -124,7 +120,7 @@ export const filesRouter = router({
 
           const where = conditions.length > 0 ? and(...conditions) : undefined
 
-          // exclude textContent from responses — too large for list queries
+          // exclude textContent from responses - too large for list queries
           const listColumns = {
             id: files.id,
             releaseId: files.releaseId,

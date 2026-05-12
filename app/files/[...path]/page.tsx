@@ -41,7 +41,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   return {
-    title: `${title} — [ufo]files`,
+    title: `${title} - [ufo]files`,
     description,
     openGraph: {
       title,

@@ -135,7 +135,7 @@ function DialogVideoPlayer({
       return
     }
 
-    // iOS Safari — only supports fullscreen on the <video> element itself
+    // iOS Safari - only supports fullscreen on the <video> element itself
     if (v && "webkitEnterFullscreen" in v) {
       ;(
         v as HTMLVideoElement & { webkitEnterFullscreen: () => void }
@@ -438,7 +438,7 @@ function ShareButton({ fileId }: { fileId: number }) {
 
 /**
  * Determines whether the close button (top-right corner) sits on a light or
- * dark area. Accounts for `object-contain` — when the rendered image doesn't
+ * dark area. Accounts for `object-contain` - when the rendered image doesn't
  * reach the right edge of its element (portrait docs), the X sits on the
  * container background instead, so we fall back to theme-aware defaults.
  */
@@ -502,7 +502,7 @@ function usePreviewLuminance(
           return
         }
 
-        // X is over the image — sample the corresponding region
+        // X is over the image - sample the corresponding region
         const probe = new Image()
         probe.crossOrigin = "anonymous"
         probe.onload = () => {
@@ -777,7 +777,7 @@ export function FileDialog({
 
           <div className="relative shrink-0" ref={previewRef}>
             {category === "VID" && file.r2Key ? (
-              <DialogVideoPlayer r2Key={file.r2Key} poster={previewSrc} />
+              <DialogVideoPlayer poster={previewSrc} r2Key={file.r2Key} />
             ) : previewSrc ? (
               <Link href={fileUrl} onClick={(e) => e.stopPropagation()}>
                 <ProgressiveDialogImage

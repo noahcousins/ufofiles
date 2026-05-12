@@ -21,7 +21,7 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  title: "[ufo]files — Browse Government UFO & UAP Files",
+  title: "[ufo]files - Browse Government UFO & UAP Files",
   description:
     "Search, browse, and download released government files on UFOs, UAPs, sightings, reports, videos, and related documents.",
   keywords: [

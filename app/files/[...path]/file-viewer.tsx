@@ -27,7 +27,7 @@ function getFileName(key: string): string {
 
 function formatFileSize(bytes: number): string {
   if (bytes === 0) {
-    return "—"
+    return "-"
   }
   const k = 1024
   const sizes = ["B", "KB", "MB", "GB"]

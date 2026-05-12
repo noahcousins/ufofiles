@@ -36,7 +36,7 @@ const SLUG_COLORS: Record<string, string> = {
   json: "text-amber-400 border-amber-400/20 bg-amber-400/5",
 }
 
-/** Canonical display order — master first, then videos, images, pdfs, json. */
+/** Canonical display order - master first, then videos, images, pdfs, json. */
 const SLUG_ORDER: string[] = [
   "master",
   "videos",
@@ -78,7 +78,7 @@ export function ReleasesPage() {
                       {release.title}
                     </h2>
                     {release.releaseDate && (
-                      <Badge variant="outline" className="font-mono text-xs">
+                      <Badge className="font-mono text-xs" variant="outline">
                         {release.releaseDate}
                       </Badge>
                     )}
@@ -107,9 +107,9 @@ export function ReleasesPage() {
                     <div className="border border-foreground/15 bg-foreground/[0.02]">
                       {master && (
                         <a
-                          href={getFileUrl(master.r2Key)}
-                          download
                           className="group flex items-center gap-4 p-4 transition-colors hover:bg-muted/30"
+                          download
+                          href={getFileUrl(master.r2Key)}
                         >
                           <div
                             className={`flex size-10 shrink-0 items-center justify-center border ${SLUG_COLORS.master}`}
@@ -131,7 +131,7 @@ export function ReleasesPage() {
                       )}
 
                       {rest.length > 0 && (
-                        <div className="grid grid-cols-2 gap-px border-t border-foreground/10 bg-foreground/10 lg:grid-cols-4">
+                        <div className="grid grid-cols-2 gap-px border-foreground/10 border-t bg-foreground/10 lg:grid-cols-4">
                           {rest.map((dl) => {
                             const Icon = SLUG_ICONS[dl.slug] ?? Archive
                             const colorClass =
@@ -139,10 +139,10 @@ export function ReleasesPage() {
 
                             return (
                               <a
-                                key={dl.id}
-                                href={getFileUrl(dl.r2Key)}
-                                download
                                 className="group flex items-center gap-3 bg-background p-4 transition-colors hover:bg-muted/30"
+                                download
+                                href={getFileUrl(dl.r2Key)}
+                                key={dl.id}
                               >
                                 <div
                                   className={`flex size-8 shrink-0 items-center justify-center border ${colorClass}`}
