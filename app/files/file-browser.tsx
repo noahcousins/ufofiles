@@ -139,14 +139,11 @@ export function FileBrowser() {
   const [agencies] = trpc.files.agencies.useSuspenseQuery()
 
   const typeCountFilters = {
-    search: searchParams.get("search") || undefined,
-    agency: searchParams.get("agency") || undefined,
+    search: filters.search || undefined,
+    agency: filters.agency || undefined,
     dateRange:
-      (searchParams.get("dateRange") as
-        | "2010-now"
-        | "2000s"
-        | "1960-2000"
-        | "pre-1960") || undefined,
+      (filters.dateRange as "2010-now" | "2000s" | "1960-2000" | "pre-1960") ||
+      undefined,
   }
   const { data: typeCounts, isPlaceholderData: typeCountsStale } =
     trpc.files.typeCounts.useQuery(typeCountFilters, {
