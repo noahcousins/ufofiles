@@ -7,7 +7,6 @@ import {
   gte,
   ilike,
   lte,
-  or,
   sql,
 } from "drizzle-orm"
 import { z } from "zod/v4"
@@ -39,12 +38,12 @@ function buildFilterConditions(input: {
 
   if (input.search) {
     conditions.push(
-      or(
-        ilike(files.title, `%${input.search}%`),
-        ilike(files.description, `%${input.search}%`),
-        ilike(files.incidentLocation, `%${input.search}%`),
-        ilike(files.textContent, `%${input.search}%`)
-      )
+      sql`(
+        setweight(to_tsvector('english', coalesce(${files.title}, '')), 'A') ||
+        setweight(to_tsvector('english', coalesce(${files.description}, '')), 'B') ||
+        setweight(to_tsvector('english', coalesce(${files.incidentLocation}, '')), 'B') ||
+        setweight(to_tsvector('english', coalesce(${files.textContent}, '')), 'C')
+      ) @@ websearch_to_tsquery('english', ${input.search})`
     )
   }
 
