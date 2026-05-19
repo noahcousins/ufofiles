@@ -1,6 +1,6 @@
 {
-  "id": "9424ad8b-d01d-481b-ac92-80651e4a5c55",
-  "prevId": "0791958a-584d-48cd-a686-2e40d97d8ddb",
+  "id": "6422f159-aef9-4e41-9a04-2d0830748c68",
+  "prevId": "05ff37c2-1349-4162-a5b8-37f046bd0aff",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -99,8 +99,12 @@
           "name": "events_file_id_files_id_fk",
           "tableFrom": "events",
           "tableTo": "files",
-          "columnsFrom": ["file_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "file_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -224,6 +228,25 @@
           "primaryKey": false,
           "notNull": false
         },
+        "extraction_status": {
+          "name": "extraction_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "extraction_method": {
+          "name": "extraction_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "extraction_error": {
+          "name": "extraction_error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "redacted": {
           "name": "redacted",
           "type": "boolean",
@@ -239,14 +262,34 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "files_search_idx": {
+          "name": "files_search_idx",
+          "columns": [
+            {
+              "expression": "(\n      setweight(to_tsvector('english', coalesce(\"title\", '')), 'A') ||\n      setweight(to_tsvector('english', coalesce(\"description\", '')), 'B') ||\n      setweight(to_tsvector('english', coalesce(\"incident_location\", '')), 'B') ||\n      setweight(to_tsvector('english', coalesce(\"text_content\", '')), 'C')\n    )",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "files_release_id_releases_id_fk": {
           "name": "files_release_id_releases_id_fk",
           "tableFrom": "files",
           "tableTo": "releases",
-          "columnsFrom": ["release_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "release_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -318,8 +361,12 @@
           "name": "release_downloads_release_id_releases_id_fk",
           "tableFrom": "release_downloads",
           "tableTo": "releases",
-          "columnsFrom": ["release_id"],
-          "columnsTo": ["id"],
+          "columnsFrom": [
+            "release_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -379,7 +426,9 @@
         "releases_name_unique": {
           "name": "releases_name_unique",
           "nullsNotDistinct": false,
-          "columns": ["name"]
+          "columns": [
+            "name"
+          ]
         }
       },
       "policies": {},

@@ -1,6 +1,6 @@
 {
-  "id": "9424ad8b-d01d-481b-ac92-80651e4a5c55",
-  "prevId": "0791958a-584d-48cd-a686-2e40d97d8ddb",
+  "id": "05ff37c2-1349-4162-a5b8-37f046bd0aff",
+  "prevId": "9424ad8b-d01d-481b-ac92-80651e4a5c55",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -220,6 +220,25 @@
         },
         "transcript_r2_key": {
           "name": "transcript_r2_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "extraction_status": {
+          "name": "extraction_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "extraction_method": {
+          "name": "extraction_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "extraction_error": {
+          "name": "extraction_error",
           "type": "text",
           "primaryKey": false,
           "notNull": false
