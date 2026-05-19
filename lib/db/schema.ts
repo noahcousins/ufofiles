@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm"
+import { relations, sql } from "drizzle-orm"
 import {
   bigint,
   boolean,
@@ -41,9 +41,22 @@ export const files = pgTable("files", {
   description: text("description"),
   textContent: text("text_content"),
   transcriptR2Key: text("transcript_r2_key"),
+  extractionStatus: text("extraction_status").notNull().default("pending"),
+  extractionMethod: text("extraction_method"),
+  extractionError: text("extraction_error"),
   redacted: boolean("redacted").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+}, (table) => [
+  index("files_search_idx").using(
+    "gin",
+    sql`(
+      setweight(to_tsvector('english', coalesce(${table.title}, '')), 'A') ||
+      setweight(to_tsvector('english', coalesce(${table.description}, '')), 'B') ||
+      setweight(to_tsvector('english', coalesce(${table.incidentLocation}, '')), 'B') ||
+      setweight(to_tsvector('english', coalesce(${table.textContent}, '')), 'C')
+    )`,
+  ),
+])
 
 export const releaseDownloads = pgTable("release_downloads", {
   id: serial("id").primaryKey(),

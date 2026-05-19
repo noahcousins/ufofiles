@@ -22,6 +22,20 @@
       "when": 1778376327200,
       "tag": "0002_steep_moonstone",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1778934165908,
+      "tag": "0003_living_starjammers",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779165279195,
+      "tag": "0004_abnormal_butterfly",
+      "breakpoints": true
     }
   ]
 }
