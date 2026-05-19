@@ -1,6 +1,7 @@
 import {
   GetObjectCommand,
   ListObjectsV2Command,
+  PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3"
 import { parseBucketPrefix } from "./r2-paths"
@@ -112,6 +113,32 @@ export async function listFiles(opts?: {
     cursor: response.NextContinuationToken ?? null,
     hasMore: response.IsTruncated ?? false,
   }
+}
+
+export async function getFileAsBuffer(key: string): Promise<Buffer | null> {
+  const file = await getFile(key)
+  if (!file) {
+    return null
+  }
+  const response = new Response(file.body)
+  const arrayBuffer = await response.arrayBuffer()
+  return Buffer.from(arrayBuffer)
+}
+
+export async function putFile(
+  key: string,
+  body: Buffer | string,
+  contentType: string
+): Promise<void> {
+  const { bucket, objectKey } = resolveBucket(key)
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: bucket,
+      Key: objectKey,
+      Body: typeof body === "string" ? Buffer.from(body, "utf-8") : body,
+      ContentType: contentType,
+    })
+  )
 }
 
 export async function getFile(key: string, range?: string) {
