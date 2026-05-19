@@ -43,22 +43,22 @@ export function Logo({ className }: { className?: string }) {
   return (
     <Link href="/">
       <motion.svg
-        width="577"
-        height="117"
-        viewBox="0 0 577 117"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
         aria-label="UFO Files logo"
         className={cn("h-8 w-auto", className)}
+        fill="none"
+        height="117"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        viewBox="0 0 577 117"
+        width="577"
+        xmlns="http://www.w3.org/2000/svg"
       >
         {PATHS.map((d, i) => (
           <motion.path
-            key={`${i}-${hoverKey}`}
+            className={isHovered ? getRandomFlickerClass() : undefined}
             d={d}
             fill="currentColor"
-            className={isHovered ? getRandomFlickerClass() : undefined}
+            key={`${i}-${hoverKey}`}
           />
         ))}
       </motion.svg>
