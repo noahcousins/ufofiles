@@ -14,7 +14,9 @@ export function Spinner({ className }: { className?: string }) {
   useEffect(() => {
     let running = true
     const tick = (now: number) => {
-      if (!running) return
+      if (!running) {
+        return
+      }
       if (now - last.current >= INTERVAL) {
         last.current = now
         setFrame((f) => (f + 1) % FRAMES.length)
@@ -30,8 +32,8 @@ export function Spinner({ className }: { className?: string }) {
 
   return (
     <span
-      className={cn("text-muted-foreground select-none", className)}
       aria-label="Loading"
+      className={cn("select-none text-muted-foreground", className)}
       role="status"
     >
       {FRAMES[frame]}
