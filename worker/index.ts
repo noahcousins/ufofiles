@@ -1,15 +1,16 @@
 export interface Env {
-  R2_SOURCE: R2Bucket
   R2_ASSETS: R2Bucket
   R2_DOWNLOADS: R2Bucket
   R2_LEGACY?: R2Bucket
+  R2_SOURCE: R2Bucket
 }
 
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Range",
-  "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
+  "Access-Control-Expose-Headers":
+    "Content-Range, Content-Length, Accept-Ranges",
 }
 
 const IMMUTABLE_CACHE = "public, max-age=31536000, immutable"
@@ -110,7 +111,11 @@ function resolveBucket(
 }
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(
+    request: Request,
+    env: Env,
+    ctx: ExecutionContext
+  ): Promise<Response> {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS })
     }
