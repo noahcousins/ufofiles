@@ -294,14 +294,14 @@ export function FileCard({
 
       <FileDialog
         category={category}
+        currentIndex={currentIndex}
         file={file}
         fileUrl={fileUrl}
-        previewSrc={dialogPreviewSrc}
-        thumbSrc={previewSrc}
+        nextFileId={nextFileId}
         onNavigate={onNavigate}
         prevFileId={prevFileId}
-        nextFileId={nextFileId}
-        currentIndex={currentIndex}
+        previewSrc={dialogPreviewSrc}
+        thumbSrc={previewSrc}
         totalFiles={totalFiles}
         viewData={viewData}
       />
