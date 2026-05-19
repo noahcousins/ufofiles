@@ -25,9 +25,8 @@ function computeHotScore(recentViews: number): number {
 }
 
 export const telemetryRouter = router({
-  recordView: rateLimitedProcedure(
-    "view",
-    (raw) => String((raw as { fileId: number }).fileId)
+  recordView: rateLimitedProcedure("view", (raw) =>
+    String((raw as { fileId: number }).fileId)
   )
     .input(z.object({ fileId: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
