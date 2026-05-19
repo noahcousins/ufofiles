@@ -345,11 +345,14 @@ export function FileFilters({
             onScroll={handleTypeScroll}
             ref={typeScrollRef}
             style={{
-              maskImage: canScrollLeft
-                ? canScrollRight
+              maskImage:
+                canScrollLeft && canScrollRight
                   ? "linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent)"
-                  : "linear-gradient(to right, transparent, black 24px)"
-                : undefined,
+                  : canScrollLeft
+                    ? "linear-gradient(to right, transparent, black 24px)"
+                    : canScrollRight
+                      ? "linear-gradient(to right, black calc(100% - 24px), transparent)"
+                      : undefined,
             }}
           >
             {(() => {
