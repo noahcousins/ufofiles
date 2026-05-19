@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  ClockCounterClockwise,
   DownloadSimple,
   GithubLogoIcon,
   GlobeHemisphereWest,
@@ -26,6 +27,7 @@ const navLinks = [
   { href: "/", label: "Search", icon: MagnifyingGlassIcon },
   { href: "/globe", label: "Incident Map", icon: GlobeHemisphereWest },
   { href: "/releases", label: "Releases", icon: DownloadSimple },
+  { href: "/changelog", label: "Changelog", icon: ClockCounterClockwise },
 ]
 
 const socialLinks = [

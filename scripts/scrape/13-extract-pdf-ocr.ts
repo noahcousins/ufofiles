@@ -14,9 +14,9 @@
  *   pnpm scrape:extract-ocr --limit 10 # process only 10 files
  */
 import { execFileSync } from "node:child_process"
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { and, eq } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
@@ -56,7 +56,10 @@ function hasMeaningfulText(text: string): boolean {
  */
 function ocrPdfWithTesseract(pdfBuffer: Buffer): string {
   // Create a temp directory for this PDF's processing
-  const tmpDir = join(tmpdir(), `ocr-${Date.now()}-${Math.random().toString(36).slice(2)}`)
+  const tmpDir = join(
+    tmpdir(),
+    `ocr-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  )
   mkdirSync(tmpDir, { recursive: true })
 
   try {
@@ -108,7 +111,9 @@ function ocrPdfWithTesseract(pdfBuffer: Buffer): string {
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
-  info("Step 13: Extracting text from PDFs (hybrid text + local OCR pipeline)\n")
+  info(
+    "Step 13: Extracting text from PDFs (hybrid text + local OCR pipeline)\n"
+  )
 
   requireBinary("pdftoppm", "brew install poppler")
   requireBinary("tesseract", "brew install tesseract")
@@ -180,7 +185,13 @@ async function main() {
       pdfBuffer = await getFileAsBuffer(file.r2Key)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      progress(i, pdfFiles.length, "FAIL", file.title, `download failed: ${msg.slice(0, 80)}`)
+      progress(
+        i,
+        pdfFiles.length,
+        "FAIL",
+        file.title,
+        `download failed: ${msg.slice(0, 80)}`
+      )
       await db
         .update(files)
         .set({
@@ -196,7 +207,10 @@ async function main() {
       progress(i, pdfFiles.length, "FAIL", file.title, "not found in R2")
       await db
         .update(files)
-        .set({ extractionStatus: "failed", extractionError: "PDF not found in R2" })
+        .set({
+          extractionStatus: "failed",
+          extractionError: "PDF not found in R2",
+        })
         .where(eq(files.id, file.id))
       stats.failed++
       continue
@@ -226,7 +240,13 @@ async function main() {
         extractedText = ocrPdfWithTesseract(pdfBuffer)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        progress(i, pdfFiles.length, "FAIL", file.title, `OCR failed: ${msg.slice(0, 80)}`)
+        progress(
+          i,
+          pdfFiles.length,
+          "FAIL",
+          file.title,
+          `OCR failed: ${msg.slice(0, 80)}`
+        )
         await db
           .update(files)
           .set({
@@ -257,7 +277,10 @@ async function main() {
 
     // --- Upload transcript to R2 ---
     const release = extractRelease(file.r2Key)
-    const filename = file.r2Key.split("/").pop()!.replace(/\.pdf$/i, "")
+    const filename = file.r2Key
+      .split("/")
+      .pop()!
+      .replace(/\.pdf$/i, "")
     const transcriptKey = release
       ? `assets/${release}/transcripts/${filename}.txt`
       : `assets/transcripts/${filename}.txt`
@@ -266,7 +289,13 @@ async function main() {
       await putFile(transcriptKey, extractedText, "text/plain; charset=utf-8")
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      progress(i, pdfFiles.length, "FAIL", file.title, `upload failed: ${msg.slice(0, 80)}`)
+      progress(
+        i,
+        pdfFiles.length,
+        "FAIL",
+        file.title,
+        `upload failed: ${msg.slice(0, 80)}`
+      )
       await db
         .update(files)
         .set({
@@ -281,7 +310,9 @@ async function main() {
 
     // --- Update DB ---
     const textContent =
-      extractedText.length > MAX_DB_TEXT ? extractedText.slice(0, MAX_DB_TEXT) : extractedText
+      extractedText.length > MAX_DB_TEXT
+        ? extractedText.slice(0, MAX_DB_TEXT)
+        : extractedText
 
     await db
       .update(files)

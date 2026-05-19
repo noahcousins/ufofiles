@@ -49,7 +49,9 @@ async function main() {
     .where(and(...conditions))
     .orderBy(files.id)
 
-  console.log(`Found ${pdfFiles.length} PDFs to check${FORCE ? " (--force)" : ""}\n`)
+  console.log(
+    `Found ${pdfFiles.length} PDFs to check${FORCE ? " (--force)" : ""}\n`
+  )
 
   let imported = 0
   let notFound = 0
@@ -65,7 +67,10 @@ async function main() {
 
     // Derive the transcript key (same logic as extraction script)
     const release = extractRelease(file.r2Key)
-    const filename = file.r2Key.split("/").pop()!.replace(/\.pdf$/i, "")
+    const filename = file.r2Key
+      .split("/")
+      .pop()!
+      .replace(/\.pdf$/i, "")
     const transcriptKey = release
       ? `assets/${release}/transcripts/${filename}.txt`
       : `assets/transcripts/${filename}.txt`
@@ -79,15 +84,17 @@ async function main() {
     }
 
     if (!textBuffer) {
-      console.log(`[${i + 1}/${pdfFiles.length}] SKIP: ${file.title} (no transcript in R2)`)
+      console.log(
+        `[${i + 1}/${pdfFiles.length}] SKIP: ${file.title} (no transcript in R2)`
+      )
       notFound++
       continue
     }
 
     const fullText = textBuffer.toString("utf-8")
-    const textContent = fullText.length > MAX_DB_TEXT ? fullText.slice(0, MAX_DB_TEXT) : fullText
+    const textContent =
+      fullText.length > MAX_DB_TEXT ? fullText.slice(0, MAX_DB_TEXT) : fullText
 
-    // Update DB — the FTS trigger auto-builds search_vector
     await db
       .update(files)
       .set({
@@ -105,12 +112,12 @@ async function main() {
     )
   }
 
-  console.log(`\n========================================`)
+  console.log("\n========================================")
   console.log(`Done! Checked ${pdfFiles.length} PDFs:`)
   console.log(`  Imported:  ${imported}`)
   console.log(`  Not in R2: ${notFound}`)
   console.log(`  Skipped:   ${skipped}`)
-  console.log(`========================================`)
+  console.log("========================================")
 
   await client.end()
 }
