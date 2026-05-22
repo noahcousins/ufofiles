@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { HydrateClient, trpc } from "@/lib/trpc/server"
-import { ReleasesPage } from "./releases-page"
+import { ReleasesPage } from "./_components/releases-page"
 
 export const metadata: Metadata = {
   title: "Releases | [ufo]files",
