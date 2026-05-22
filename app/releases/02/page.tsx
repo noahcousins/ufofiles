@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     description: "Official release of declassified UFO and UAP files.",
     images: [
       {
-        url: `${process.env.NEXT_PUBLIC_WORKER_URL}/static/release-02-og-image.jpg`,
+        url: `${process.env.NEXT_PUBLIC_WORKER_URL}/assets/static/release-02-og-image.jpg`,
       },
     ],
   },
