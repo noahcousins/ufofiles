@@ -4,14 +4,29 @@ import { fileURLToPath } from "node:url"
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 // ---------------------------------------------------------------------------
+// Release resolution (CLI --release flag > RELEASE env var > default)
+// ---------------------------------------------------------------------------
+function resolveRelease(): string {
+  const idx = process.argv.indexOf("--release")
+  if (idx !== -1 && process.argv[idx + 1]) {
+    return process.argv[idx + 1]
+  }
+  if (process.env.RELEASE) {
+    return process.env.RELEASE
+  }
+  return "release-1"
+}
+export const RELEASE = resolveRelease()
+
+// ---------------------------------------------------------------------------
 // Paths (relative to project root - two levels up from scripts/scrape/)
 // ---------------------------------------------------------------------------
 export const PROJECT_ROOT = join(__dirname, "..", "..")
-export const RECORDS_PATH = join(PROJECT_ROOT, "ufo-records.json")
-export const CSV_PATH = join(PROJECT_ROOT, "ufo-records-latest.csv")
-export const OUT_DIR = join(PROJECT_ROOT, "ufo-files")
+export const RECORDS_PATH = join(PROJECT_ROOT, `ufo-records-${RELEASE}.json`)
+export const CSV_PATH = join(PROJECT_ROOT, `ufo-records-${RELEASE}.csv`)
+export const OUT_DIR = join(PROJECT_ROOT, "ufo-files", RELEASE)
 export const SOURCE_DIR = join(OUT_DIR, "source")
-export const URLS_PATH = join(PROJECT_ROOT, "ufo-download-urls.txt")
+export const URLS_PATH = join(PROJECT_ROOT, `ufo-download-urls-${RELEASE}.txt`)
 
 // ---------------------------------------------------------------------------
 // Remote URLs
@@ -74,6 +89,5 @@ export const STREAM_AUDIO_BITRATE = "128k"
 // ---------------------------------------------------------------------------
 // R2 upload settings
 // ---------------------------------------------------------------------------
-export const RELEASE = "release-1"
 export const UPLOAD_PART_SIZE = 10 * 1024 * 1024 // 10MB
 export const UPLOAD_QUEUE_SIZE = 4

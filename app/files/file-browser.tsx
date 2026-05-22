@@ -4,7 +4,7 @@ import { keepPreviousData } from "@tanstack/react-query"
 import { useSearchParams } from "next/navigation"
 import { parseAsInteger, parseAsString, useQueryStates } from "nuqs"
 import posthog from "posthog-js"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Header } from "@/components/layout/header"
 import { Spinner } from "@/components/ui/spinner"
 import { loadManifest } from "@/lib/file-cache"
@@ -19,6 +19,8 @@ const filterParsers = {
   agency: parseAsString.withDefault(""),
   type: parseAsString.withDefault(""),
   dateRange: parseAsString.withDefault(""),
+  release: parseAsString.withDefault(""),
+  tag: parseAsString.withDefault(""),
   sort: parseAsString.withDefault("most-views"),
   fileId: parseAsInteger.withOptions({ history: "push" }),
 }
@@ -80,6 +82,48 @@ export function FileBrowser() {
     []
   )
 
+  const [releasesList] = trpc.releases.list.useSuspenseQuery()
+
+  const newestRelease = useMemo(
+    () =>
+      releasesList.length > 0
+        ? releasesList.reduce((a, b) => {
+            const aDate = a.releaseDate
+              ? new Date(a.releaseDate).getTime()
+              : 0
+            const bDate = b.releaseDate
+              ? new Date(b.releaseDate).getTime()
+              : 0
+            return bDate > aDate ? b : a
+          })
+        : null,
+    [releasesList]
+  )
+
+  const isNewestReleaseNew = newestRelease?.releaseDate
+    ? Date.now() - new Date(newestRelease.releaseDate).getTime() <
+      7 * 24 * 60 * 60 * 1000
+    : false
+
+  const [seenNewestRelease, setSeenNewestRelease] = useState(() => {
+    if (typeof window === "undefined") return true
+    return localStorage.getItem("seen-newest-release") === newestRelease?.name
+  })
+
+  const markReleaseSeen = useCallback(() => {
+    if (newestRelease) {
+      localStorage.setItem("seen-newest-release", newestRelease.name)
+      setSeenNewestRelease(true)
+    }
+  }, [newestRelease])
+
+  const unseenNewReleaseName =
+    isNewestReleaseNew && !seenNewestRelease ? newestRelease?.name : null
+
+  const selectedReleaseId = filters.release
+    ? releasesList.find((r) => r.name === filters.release)?.id
+    : undefined
+
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
     trpc.files.list.useInfiniteQuery(
       {
@@ -94,6 +138,8 @@ export function FileBrowser() {
             | "2000s"
             | "1960-2000"
             | "pre-1960") || undefined,
+        releaseId: selectedReleaseId,
+        tags: searchParams.get("tag") ? searchParams.get("tag")!.split(",") : undefined,
         pageSize: PAGE_SIZE,
         sortBy:
           (searchParams.get("sort") as
@@ -102,7 +148,10 @@ export function FileBrowser() {
             | "most-views"
             | "least-views") || "most-views",
       },
-      { getNextPageParam: (lastPage) => lastPage.nextCursor }
+      {
+        getNextPageParam: (lastPage) => lastPage.nextCursor,
+        placeholderData: keepPreviousData,
+      }
     )
 
   const allItems = (data?.pages.flatMap((p) => p.items) ?? []).filter(
@@ -138,31 +187,50 @@ export function FileBrowser() {
 
   const [agencies] = trpc.files.agencies.useSuspenseQuery()
 
-  const typeCountFilters = {
+  const crossFilters = {
     search: filters.search || undefined,
     agency: filters.agency || undefined,
+    type:
+      (filters.type as "image" | "video" | "pdf" | "other") || undefined,
     dateRange:
       (filters.dateRange as "2010-now" | "2000s" | "1960-2000" | "pre-1960") ||
       undefined,
+    releaseId: selectedReleaseId,
+    tags: filters.tag ? filters.tag.split(",") : undefined,
   }
+
   const { data: typeCounts, isPlaceholderData: typeCountsStale } =
-    trpc.files.typeCounts.useQuery(typeCountFilters, {
+    trpc.files.typeCounts.useQuery(crossFilters, {
       placeholderData: keepPreviousData,
     })
 
-  const [dateRangeCounts] = trpc.files.dateRangeCounts.useSuspenseQuery()
+  const { data: dateRangeCounts } = trpc.files.dateRangeCounts.useQuery(
+    crossFilters,
+    { placeholderData: keepPreviousData }
+  )
+
+  const { data: tagsList } = trpc.files.tags.useQuery(crossFilters, {
+    placeholderData: keepPreviousData,
+  })
+
+  const { data: releaseCounts } = trpc.files.releaseCounts.useQuery(
+    crossFilters,
+    { placeholderData: keepPreviousData }
+  )
 
   return (
     <>
       <Header
         mobileSearchOpen={mobileSearchOpen}
+        newReleaseName={unseenNewReleaseName}
+        onNewReleaseClick={markReleaseSeen}
         onMobileSearchToggle={() => setMobileSearchOpen((prev) => !prev)}
       >
         <FileFilters
           agencies={agencies}
           agency={filters.agency}
           dateRange={filters.dateRange}
-          dateRangeCounts={dateRangeCounts}
+          dateRangeCounts={dateRangeCounts ?? []}
           mobileSearchOpen={mobileSearchOpen}
           onAgencyChange={(val) => {
             setFilters({ agency: val })
@@ -176,6 +244,8 @@ export function FileBrowser() {
               agency: null,
               type: null,
               dateRange: null,
+              release: null,
+              tag: null,
               sort: null,
             })
             posthog.capture("filters_cleared")
@@ -184,6 +254,33 @@ export function FileBrowser() {
             setFilters({ dateRange: val })
             if (val) {
               posthog.capture("date_range_filter_applied", { date_range: val })
+            }
+          }}
+          onMarkReleaseSeen={markReleaseSeen}
+          onReleaseChange={(val) => {
+            setFilters({ release: val })
+            if (val) {
+              posthog.capture("release_filter_applied", { release: val })
+            }
+          }}
+          release={filters.release}
+          releaseCounts={releaseCounts}
+          releases={releasesList}
+          seenNewestRelease={seenNewestRelease}
+          tag={filters.tag}
+          tags={tagsList ?? []}
+          onTagChange={(slug) => {
+            if (!slug) {
+              setFilters({ tag: null })
+              return
+            }
+            const current = filters.tag ? filters.tag.split(",") : []
+            const next = current.includes(slug)
+              ? current.filter((t) => t !== slug)
+              : [...current, slug]
+            setFilters({ tag: next.length > 0 ? next.join(",") : null })
+            if (!current.includes(slug)) {
+              posthog.capture("tag_filter_applied", { tag: slug })
             }
           }}
           onMobileSearchClose={() => setMobileSearchOpen(false)}
@@ -200,6 +297,7 @@ export function FileBrowser() {
           }}
           searchInput={searchInput}
           sort={filters.sort}
+          totalFiles={total}
           type={filters.type}
           typeCounts={typeCounts ?? []}
           typeCountsLoading={typeCountsStale}

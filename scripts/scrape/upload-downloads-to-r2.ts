@@ -10,7 +10,15 @@ import { RELEASE } from "./config"
 import { info, progress, summary } from "./logger"
 import type { DownloadStats } from "./types"
 
-const ARCHIVES_DIR = join(import.meta.dirname ?? ".", "..", "..", "archives")
+function resolveDir(): string {
+  const idx = process.argv.indexOf("--dir")
+  if (idx !== -1 && process.argv[idx + 1]) {
+    return process.argv[idx + 1]
+  }
+  return join(import.meta.dirname ?? ".", "..", "..", "archives")
+}
+
+const ARCHIVES_DIR = resolveDir()
 
 const ZIP_RE = /\.zip$/i
 const MAX_RETRIES = 3
@@ -162,11 +170,12 @@ async function syncDb(
   let inserted = 0
   let skipped = 0
 
-  for (const { filename, key, size } of uploaded) {
-    const meta = ZIP_META[filename]
-    if (!meta) {
-      info(`  No metadata for ${filename} - skipping DB row`)
-      continue
+  for (let idx = 0; idx < uploaded.length; idx++) {
+    const { filename, key, size } = uploaded[idx]
+    const meta = ZIP_META[filename] ?? {
+      label: filename.replace(/\.zip$/i, "").replace(/[_-]/g, " "),
+      slug: filename.replace(/\.zip$/i, "").replace(/[^a-z0-9]+/gi, "-").toLowerCase(),
+      sort: 10 + idx,
     }
 
     const r2Key = `downloads/${key}`

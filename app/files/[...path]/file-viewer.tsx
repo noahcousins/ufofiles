@@ -6,7 +6,6 @@ import {
   CaretLeftIcon,
   CaretRightIcon,
   DownloadSimpleIcon,
-  FileTextIcon,
 } from "@phosphor-icons/react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -261,30 +260,6 @@ export function FileViewer({
               Download
             </Button>
           </a>
-
-          {transcriptR2Key && (
-            <a
-              download
-              href={getFileUrl(transcriptR2Key)}
-              onClick={() =>
-                posthog.capture("transcript_downloaded_viewer", {
-                  file_key: fileKey,
-                })
-              }
-            >
-              <Button className="sm:hidden" size="sm" variant="outline">
-                <FileTextIcon className="size-3.5" />
-              </Button>
-              <Button
-                className="hidden gap-1.5 sm:inline-flex"
-                size="sm"
-                variant="outline"
-              >
-                <FileTextIcon className="size-3.5" />
-                Transcript
-              </Button>
-            </a>
-          )}
 
           {documentUrl && (
             <a href={documentUrl} rel="noopener noreferrer" target="_blank">

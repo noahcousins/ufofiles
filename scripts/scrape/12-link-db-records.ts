@@ -17,7 +17,8 @@ const MAX_DB_TEXT = 1_000_000
 /** try to find a local file matching a record's title (doc, video, or collision-suffixed). */
 function findLocalFile(
   r: UfoRecord,
-  fileSizes: Map<string, number>
+  fileSizes: Map<string, number>,
+  videoIdToFile?: Map<string, string>
 ): string | null {
   const base = r.title.replace(SAFE_NAME_RE, "_")
 
@@ -39,6 +40,22 @@ function findLocalFile(
     const vidSuffixed = `${base}_vid${r.videoId}.mp4`
     if (fileSizes.has(vidSuffixed)) {
       return vidSuffixed
+    }
+  }
+
+  // check by filename from documentUrl (files may have been saved with their original name)
+  if (r.documentUrl) {
+    const urlFilename = decodeURIComponent(r.documentUrl.split("?")[0].split("/").pop() ?? "")
+    if (urlFilename && fileSizes.has(urlFilename)) {
+      return urlFilename
+    }
+  }
+
+  // check videoId→file map (handles duplicates saved under a different title)
+  if (r.videoId && videoIdToFile) {
+    const match = videoIdToFile.get(r.videoId)
+    if (match && fileSizes.has(match)) {
+      return match
     }
   }
 
@@ -129,13 +146,25 @@ export async function main() {
   }
   info(`${dbFiles.length} file records in database for this release\n`)
 
+  // build videoId→filename map so duplicate-videoId records can find the file
+  const videoIdToFile = new Map<string, string>()
+  for (const r of records) {
+    if (r.videoId) {
+      const base = r.title.replace(SAFE_NAME_RE, "_")
+      const videoName = `${base}.mp4`
+      if (fileSizes.has(videoName)) {
+        videoIdToFile.set(r.videoId, videoName)
+      }
+    }
+  }
+
   // match and update
   let updated = 0
   let noFile = 0
   let noDbRecord = 0
 
   for (const r of records) {
-    const localName = findLocalFile(r, fileSizes)
+    const localName = findLocalFile(r, fileSizes, videoIdToFile)
 
     if (!localName) {
       noFile++
