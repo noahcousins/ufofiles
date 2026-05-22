@@ -2,11 +2,13 @@ import type { Metadata } from "next"
 import { redirect } from "next/navigation"
 
 export const metadata: Metadata = {
-  title: "Release 2 | [ufo]files",
-  description: "Official release of declassified UFO and UAP files.",
+  title: "Official UFO Files Release 02 | [ufo]files",
+  description:
+    "Official release of declassified UFO and UAP files from May 2026.",
   openGraph: {
-    title: "Release 2 | [ufo]files",
-    description: "Official release of declassified UFO and UAP files.",
+    title: "Official UFO Files Release 02 | [ufo]files",
+    description:
+      "Official release of declassified UFO and UAP files from May 2026.",
     images: [
       {
         url: `${process.env.NEXT_PUBLIC_WORKER_URL}/assets/static/release-02-og-image.jpg`,
@@ -15,8 +17,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Release 2 | [ufo]files",
-    description: "Official release of declassified UFO and UAP files.",
+    title: "Official UFO Files Release 02 | [ufo]files",
+    description:
+      "Official release of declassified UFO and UAP files from May 2026.",
     images: [
       `${process.env.NEXT_PUBLIC_WORKER_URL}/static/release-02-og-image.jpg`,
     ],

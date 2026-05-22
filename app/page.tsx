@@ -8,8 +8,9 @@ const RELEASE_OG_IMAGES: Record<
   { title: string; description: string; image: string }
 > = {
   "release-2": {
-    title: "Release 2 | [ufo]files",
-    description: "Official release of declassified UFO and UAP files.",
+    title: "Official UFO Files Release 02 | [ufo]files",
+    description:
+      "Official release of declassified UFO and UAP files from May 2026.",
     image: `${process.env.NEXT_PUBLIC_WORKER_URL}/assets/static/release-02-og-image.jpg`,
   },
 }
