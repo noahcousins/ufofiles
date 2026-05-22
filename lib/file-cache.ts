@@ -9,6 +9,8 @@ interface PdfManifestEntry {
 
 type PdfManifest = Record<string, PdfManifestEntry>
 
+const KNOWN_RELEASES = ["release-1", "release-2"]
+
 let manifestPromise: Promise<PdfManifest> | null = null
 let manifestData: PdfManifest | null = null
 
@@ -17,17 +19,18 @@ export async function loadManifest(): Promise<PdfManifest> {
     return manifestData
   }
   if (!manifestPromise) {
-    const url = `${getFileUrl("assets/release-1/pdf-pages/manifest.json")}?v=${Date.now()}`
-    manifestPromise = fetch(url)
-      .then((r) => {
-        if (!r.ok) {
-          throw new Error(`Manifest fetch failed: ${r.status}`)
-        }
-        return r.json() as Promise<PdfManifest>
-      })
-      .then((data) => {
-        manifestData = data
-        return data
+    manifestPromise = Promise.all(
+      KNOWN_RELEASES.map((release) =>
+        fetch(
+          `${getFileUrl(`assets/${release}/pdf-pages/manifest.json`)}?v=${Date.now()}`
+        )
+          .then((r) => (r.ok ? (r.json() as Promise<PdfManifest>) : {}))
+          .catch(() => ({}) as PdfManifest)
+      )
+    )
+      .then((manifests) => {
+        manifestData = Object.assign({}, ...manifests) as PdfManifest
+        return manifestData
       })
       .catch(() => {
         manifestData = {}

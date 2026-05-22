@@ -75,6 +75,30 @@ export const releaseDownloads = pgTable("release_downloads", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
 
+export const tags = pgTable("tags", {
+  id: serial("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  label: text("label").notNull(),
+  category: text("category").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+})
+
+export const fileTags = pgTable(
+  "file_tags",
+  {
+    fileId: integer("file_id")
+      .notNull()
+      .references(() => files.id),
+    tagId: integer("tag_id")
+      .notNull()
+      .references(() => tags.id),
+  },
+  (t) => [
+    index("file_tags_file_id_idx").on(t.fileId),
+    index("file_tags_tag_id_idx").on(t.tagId),
+  ]
+)
+
 export const events = pgTable(
   "events",
   {
@@ -114,11 +138,27 @@ export const filesRelations = relations(files, ({ one, many }) => ({
     references: [releases.id],
   }),
   events: many(events),
+  fileTags: many(fileTags),
 }))
 
 export const eventsRelations = relations(events, ({ one }) => ({
   file: one(files, {
     fields: [events.fileId],
     references: [files.id],
+  }),
+}))
+
+export const tagsRelations = relations(tags, ({ many }) => ({
+  fileTags: many(fileTags),
+}))
+
+export const fileTagsRelations = relations(fileTags, ({ one }) => ({
+  file: one(files, {
+    fields: [fileTags.fileId],
+    references: [files.id],
+  }),
+  tag: one(tags, {
+    fields: [fileTags.tagId],
+    references: [tags.id],
   }),
 }))

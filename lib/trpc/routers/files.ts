@@ -2,12 +2,25 @@ import { and, asc, count, desc, eq, gte, ilike, lte, sql } from "drizzle-orm"
 import { z } from "zod/v4"
 import { cacheKey, withCache } from "@/lib/cache"
 import { db } from "@/lib/db"
-import { files } from "@/lib/db/schema"
+import { files, fileTags, tags } from "@/lib/db/schema"
 import { router } from "../init"
 import { rateLimitedProcedure } from "../rateLimit"
 
 const SIX_HOURS = 6 * 60 * 60
 const ONE_DAY = 24 * 60 * 60
+
+const crossFilterInput = z
+  .object({
+    search: z.string().optional(),
+    agency: z.string().optional(),
+    type: z.enum(["image", "video", "pdf", "other"]).optional(),
+    dateRange: z
+      .enum(["2010-now", "2000s", "1960-2000", "pre-1960"])
+      .optional(),
+    releaseId: z.number().optional(),
+    tags: z.array(z.string()).optional(),
+  })
+  .optional()
 
 const DATE_RANGES: Record<string, [number, number]> = {
   "2010-now": [2010, new Date().getFullYear()],
@@ -23,6 +36,7 @@ function buildFilterConditions(input: {
   type?: "image" | "video" | "pdf" | "other"
   dateRange?: "2010-now" | "2000s" | "1960-2000" | "pre-1960"
   releaseId?: number
+  tags?: string[]
 }) {
   const conditions = []
 
@@ -66,6 +80,18 @@ function buildFilterConditions(input: {
     conditions.push(eq(files.releaseId, input.releaseId))
   }
 
+  if (input.tags && input.tags.length > 0) {
+    conditions.push(
+      sql`${files.id} IN (
+        SELECT ft.file_id FROM file_tags ft
+        JOIN tags t ON t.id = ft.tag_id
+        WHERE t.slug IN ${sql.raw(`(${input.tags.map((t) => `'${t.replace(/'/g, "''")}'`).join(",")})`)}
+        GROUP BY ft.file_id
+        HAVING COUNT(DISTINCT t.slug) = ${input.tags.length}
+      )`
+    )
+  }
+
   return conditions
 }
 
@@ -80,6 +106,7 @@ export const filesRouter = router({
           .enum(["2010-now", "2000s", "1960-2000", "pre-1960"])
           .optional(),
         releaseId: z.number().optional(),
+        tags: z.array(z.string()).optional(),
         cursor: z.number().min(1).nullish(),
         pageSize: z.number().min(1).max(100).default(48),
         sortBy: z
@@ -93,12 +120,13 @@ export const filesRouter = router({
       const page = cursor ?? 1
 
       return withCache(
-        cacheKey("files:list:v6", {
+        cacheKey("files:list:v7", {
           search: input.search,
           agency: input.agency,
           type: input.type,
           dateRange: input.dateRange,
           releaseId: input.releaseId,
+          tags: input.tags,
           page,
           pageSize,
           sortBy,
@@ -221,20 +249,10 @@ export const filesRouter = router({
   ),
 
   typeCounts: rateLimitedProcedure("query")
-    .input(
-      z
-        .object({
-          search: z.string().optional(),
-          agency: z.string().optional(),
-          dateRange: z
-            .enum(["2010-now", "2000s", "1960-2000", "pre-1960"])
-            .optional(),
-        })
-        .optional()
-    )
+    .input(crossFilterInput)
     .query(async ({ input }) =>
       withCache(
-        cacheKey("files:mimeTypeCounts:v4", input),
+        cacheKey("files:mimeTypeCounts:v5", input),
         SIX_HOURS,
         async () => {
           const category = sql<string>`
@@ -263,29 +281,41 @@ export const filesRouter = router({
       )
     ),
 
-  dateRangeCounts: rateLimitedProcedure("query").query(async () =>
-    withCache("files:dateRangeCounts:v1", ONE_DAY, async () => {
-      const bucket = sql<string>`
-        CASE
-          WHEN ${files.incidentYear} >= 2010 THEN '2010-now'
-          WHEN ${files.incidentYear} >= 2000 THEN '2000s'
-          WHEN ${files.incidentYear} >= 1960 THEN '1960-2000'
-          WHEN ${files.incidentYear} IS NOT NULL THEN 'pre-1960'
-        END
-      `.as("date_bucket")
+  dateRangeCounts: rateLimitedProcedure("query")
+    .input(crossFilterInput)
+    .query(async ({ input }) =>
+      withCache(
+        cacheKey("files:dateRangeCounts:v2", input),
+        SIX_HOURS,
+        async () => {
+          const bucket = sql<string>`
+            CASE
+              WHEN ${files.incidentYear} >= 2010 THEN '2010-now'
+              WHEN ${files.incidentYear} >= 2000 THEN '2000s'
+              WHEN ${files.incidentYear} >= 1960 THEN '1960-2000'
+              WHEN ${files.incidentYear} IS NOT NULL THEN 'pre-1960'
+            END
+          `.as("date_bucket")
 
-      const result = await db
-        .select({
-          bucket,
-          count: count(),
-        })
-        .from(files)
-        .where(sql`${files.incidentYear} IS NOT NULL`)
-        .groupBy(bucket)
+          const conditions = buildFilterConditions({
+            ...input,
+            dateRange: undefined,
+          })
+          conditions.push(sql`${files.incidentYear} IS NOT NULL`)
 
-      return result
-    })
-  ),
+          const result = await db
+            .select({
+              bucket,
+              count: count(),
+            })
+            .from(files)
+            .where(and(...conditions))
+            .groupBy(bucket)
+
+          return result
+        }
+      )
+    ),
 
   locations: rateLimitedProcedure("query").query(async () =>
     withCache("files:locations", ONE_DAY, async () => {
@@ -304,4 +334,75 @@ export const filesRouter = router({
       return result
     })
   ),
+
+  tags: rateLimitedProcedure("query")
+    .input(crossFilterInput)
+    .query(async ({ input }) =>
+      withCache(
+        cacheKey("files:tags:v2", input),
+        SIX_HOURS,
+        async () => {
+          const conditions = buildFilterConditions({
+            ...input,
+            tags: undefined,
+          })
+
+          const where =
+            conditions.length > 0
+              ? sql`AND ${and(...conditions)}`
+              : sql``
+
+          const result = await db
+            .select({
+              slug: tags.slug,
+              label: tags.label,
+              category: tags.category,
+              count:
+                sql<number>`COUNT(DISTINCT ${fileTags.fileId})::int`.as(
+                  "count"
+                ),
+            })
+            .from(tags)
+            .innerJoin(fileTags, eq(fileTags.tagId, tags.id))
+            .where(
+              sql`${fileTags.fileId} IN (SELECT ${files.id} FROM ${files} WHERE 1=1 ${where})`
+            )
+            .groupBy(tags.slug, tags.label, tags.category)
+            .orderBy(desc(sql`count`))
+
+          return result
+        }
+      )
+    ),
+
+  releaseCounts: rateLimitedProcedure("query")
+    .input(crossFilterInput)
+    .query(async ({ input }) =>
+      withCache(
+        cacheKey("files:releaseCounts:v1", input),
+        SIX_HOURS,
+        async () => {
+          const conditions = buildFilterConditions({
+            ...input,
+            releaseId: undefined,
+          })
+
+          const where =
+            conditions.length > 0 ? and(...conditions) : undefined
+
+          const result = await db
+            .select({
+              releaseId: files.releaseId,
+              count: count(),
+            })
+            .from(files)
+            .where(where)
+            .groupBy(files.releaseId)
+
+          return Object.fromEntries(
+            result.map((r) => [r.releaseId, r.count])
+          ) as Record<number, number>
+        }
+      )
+    ),
 })

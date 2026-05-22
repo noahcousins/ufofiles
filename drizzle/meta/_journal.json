@@ -36,6 +36,13 @@
       "when": 1779165279195,
       "tag": "0004_abnormal_butterfly",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779468133694,
+      "tag": "0005_open_swarm",
+      "breakpoints": true
     }
   ]
 }

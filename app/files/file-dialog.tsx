@@ -6,7 +6,6 @@ import {
   CaretRightIcon,
   CornersInIcon,
   CornersOutIcon,
-  FileTextIcon,
   Pause,
   Play,
   ShareNetworkIcon,
@@ -385,21 +384,20 @@ function DialogVideoPlayer({
   )
 }
 
-function ShareButton({ fileId }: { fileId: number }) {
+function ShareButton({ fileId, fileUrl }: { fileId: number; fileUrl: string }) {
   const [copied, setCopied] = useState(false)
 
   const handleCopy = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      const url = new URL(window.location.href)
-      url.searchParams.set("fileId", String(fileId))
+      const url = new URL(fileUrl, window.location.origin)
       navigator.clipboard.writeText(url.toString()).then(() => {
         setCopied(true)
         setTimeout(() => setCopied(false), 2000)
         posthog.capture("file_shared", { file_id: fileId })
       })
     },
-    [fileId]
+    [fileId, fileUrl]
   )
 
   return (
@@ -875,24 +873,6 @@ export function FileDialog({
                 </Button>
               </a>
             )}
-            {file.transcriptR2Key && (
-              <a
-                download
-                href={getFileUrl(file.transcriptR2Key)}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  posthog.capture("transcript_downloaded", {
-                    file_id: file.id,
-                    file_title: file.title,
-                  })
-                }}
-              >
-                <Button className="gap-1.5" size="sm" variant="outline">
-                  <FileTextIcon className="size-3.5" />
-                  <span className="hidden sm:inline">Transcript</span>
-                </Button>
-              </a>
-            )}
             {file.documentUrl && (
               <a
                 href={file.documentUrl}
@@ -913,7 +893,7 @@ export function FileDialog({
                 </Button>
               </a>
             )}
-            <ShareButton fileId={file.id} />
+            <ShareButton fileId={file.id} fileUrl={fileUrl} />
           </div>
         </div>
 

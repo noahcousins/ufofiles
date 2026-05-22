@@ -1,6 +1,7 @@
 "use client"
 
 import {
+  ArrowRightIcon,
   ClockCounterClockwise,
   DownloadSimple,
   GithubLogoIcon,
@@ -12,6 +13,7 @@ import {
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
+import { Button } from "@/components/ui/button"
 import { Logo } from "@/components/ui/logo"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -46,12 +48,16 @@ const socialLinks = [
 interface HeaderProps {
   children?: React.ReactNode
   mobileSearchOpen?: boolean
+  newReleaseName?: string | null
+  onNewReleaseClick?: () => void
   onMobileSearchToggle?: () => void
 }
 
 export function Header({
   children,
   mobileSearchOpen,
+  newReleaseName,
+  onNewReleaseClick,
   onMobileSearchToggle,
 }: HeaderProps) {
   const pathname = usePathname()
@@ -63,6 +69,17 @@ export function Header({
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
         <div className="flex items-center gap-4">
           <Logo className="h-3.5" />
+          {newReleaseName && (
+            <Link
+              href={`/?release=${encodeURIComponent(newReleaseName)}`}
+              onClick={onNewReleaseClick}
+            >
+              <Button size="xs" variant="default">
+                Release 02 out now
+                <ArrowRightIcon className="size-4" />
+              </Button>
+            </Link>
+          )}
 
           <div className="hidden items-center gap-1 lg:flex">
             {navLinks.map(({ href, label, icon: Icon }) => (
