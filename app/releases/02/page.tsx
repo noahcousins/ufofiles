@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     description:
       "Official release of declassified UFO and UAP files from May 2026.",
     images: [
-      `${process.env.NEXT_PUBLIC_WORKER_URL}/static/release-02-og-image.jpg`,
+      `${process.env.NEXT_PUBLIC_WORKER_URL}/assets/static/release-02-og-image.jpg`,
     ],
   },
 }
