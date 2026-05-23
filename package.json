@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "biome check .",
     "format": "biome check --fix .",
-    "typecheck": "tsc --noEmit",
+    "check": "tsc --noEmit",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
