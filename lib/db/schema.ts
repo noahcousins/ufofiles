@@ -99,6 +99,22 @@ export const fileTags = pgTable(
   ]
 )
 
+export const videoMoments = pgTable(
+  "video_moments",
+  {
+    id: serial("id").primaryKey(),
+    fileId: integer("file_id")
+      .notNull()
+      .references(() => files.id),
+    startSeconds: integer("start_seconds").notNull(),
+    endSeconds: integer("end_seconds"),
+    description: text("description").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [index("video_moments_file_id_idx").on(t.fileId)]
+)
+
 export const events = pgTable(
   "events",
   {
@@ -139,6 +155,14 @@ export const filesRelations = relations(files, ({ one, many }) => ({
   }),
   events: many(events),
   fileTags: many(fileTags),
+  videoMoments: many(videoMoments),
+}))
+
+export const videoMomentsRelations = relations(videoMoments, ({ one }) => ({
+  file: one(files, {
+    fields: [videoMoments.fileId],
+    references: [files.id],
+  }),
 }))
 
 export const eventsRelations = relations(events, ({ one }) => ({

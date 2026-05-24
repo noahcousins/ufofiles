@@ -338,42 +338,128 @@ export const filesRouter = router({
   tags: rateLimitedProcedure("query")
     .input(crossFilterInput)
     .query(async ({ input }) =>
-      withCache(
-        cacheKey("files:tags:v2", input),
+      withCache(cacheKey("files:tags:v2", input), SIX_HOURS, async () => {
+        const conditions = buildFilterConditions({
+          ...input,
+          tags: undefined,
+        })
+
+        const where =
+          conditions.length > 0 ? sql`AND ${and(...conditions)}` : sql``
+
+        const result = await db
+          .select({
+            slug: tags.slug,
+            label: tags.label,
+            category: tags.category,
+            count: sql<number>`COUNT(DISTINCT ${fileTags.fileId})::int`.as(
+              "count"
+            ),
+          })
+          .from(tags)
+          .innerJoin(fileTags, eq(fileTags.tagId, tags.id))
+          .where(
+            sql`${fileTags.fileId} IN (SELECT ${files.id} FROM ${files} WHERE 1=1 ${where})`
+          )
+          .groupBy(tags.slug, tags.label, tags.category)
+          .orderBy(desc(sql`count`))
+
+        return result
+      })
+    ),
+
+  videoFeed: rateLimitedProcedure("query")
+    .input(
+      z.object({
+        cursor: z.number().min(1).nullish(),
+        pageSize: z.number().min(1).max(20).default(5),
+        seed: z.string().default("default"),
+      })
+    )
+    .query(async ({ input }) => {
+      const { cursor, pageSize = 5, seed } = input
+      const page = cursor ?? 1
+
+      return withCache(
+        cacheKey("files:videoFeed:v3", { page, pageSize, seed }),
         SIX_HOURS,
         async () => {
-          const conditions = buildFilterConditions({
-            ...input,
-            tags: undefined,
-          })
+          const feedQuery = sql`
+            SELECT
+              f.id,
+              f.title,
+              f.agency,
+              f.r2_key,
+              f.file_size,
+              f.mime_type,
+              f.incident_date,
+              f.incident_location,
+              f.description,
+              COALESCE(
+                (SELECT json_agg(json_build_object('slug', t.slug, 'label', t.label))
+                 FROM file_tags ft
+                 JOIN tags t ON t.id = ft.tag_id
+                 WHERE ft.file_id = f.id),
+                '[]'::json
+              ) AS tags,
+              COALESCE(
+                (SELECT json_agg(
+                   json_build_object(
+                     'id', vm.id,
+                     'startSeconds', vm.start_seconds,
+                     'endSeconds', vm.end_seconds,
+                     'description', vm.description
+                   ) ORDER BY vm.sort_order
+                 )
+                 FROM video_moments vm
+                 WHERE vm.file_id = f.id),
+                '[]'::json
+              ) AS moments
+            FROM files f
+            WHERE f.mime_type ILIKE 'video/%' AND f.r2_key IS NOT NULL
+              AND f.r2_key LIKE 'source/release-2/%'
+            ORDER BY md5(f.id::text || ${seed})
+            LIMIT ${pageSize}
+            OFFSET ${(page - 1) * pageSize}
+          `
 
-          const where =
-            conditions.length > 0
-              ? sql`AND ${and(...conditions)}`
-              : sql``
+          const countQuery = sql`
+            SELECT COUNT(*) AS count
+            FROM files f
+            WHERE f.mime_type ILIKE 'video/%' AND f.r2_key IS NOT NULL
+              AND f.r2_key LIKE 'source/release-2/%'
+          `
 
-          const result = await db
-            .select({
-              slug: tags.slug,
-              label: tags.label,
-              category: tags.category,
-              count:
-                sql<number>`COUNT(DISTINCT ${fileTags.fileId})::int`.as(
-                  "count"
-                ),
-            })
-            .from(tags)
-            .innerJoin(fileTags, eq(fileTags.tagId, tags.id))
-            .where(
-              sql`${fileTags.fileId} IN (SELECT ${files.id} FROM ${files} WHERE 1=1 ${where})`
-            )
-            .groupBy(tags.slug, tags.label, tags.category)
-            .orderBy(desc(sql`count`))
+          const items = await db.execute(feedQuery)
+          const [totalRow] = await db.execute(countQuery)
+          const total = Number((totalRow as any).count)
+          const totalPages = Math.ceil(total / pageSize)
 
-          return result
+          return {
+            items: (items as any[]).map((row: any) => ({
+              id: row.id as number,
+              title: row.title as string,
+              agency: row.agency as string | null,
+              r2Key: row.r2_key as string | null,
+              fileSize: row.file_size ? Number(row.file_size) : null,
+              mimeType: row.mime_type as string | null,
+              incidentDate: row.incident_date as string | null,
+              incidentLocation: row.incident_location as string | null,
+              description: row.description as string | null,
+              tags: (row.tags ?? []) as { slug: string; label: string }[],
+              moments: (row.moments ?? []) as {
+                id: number
+                startSeconds: number
+                endSeconds: number | null
+                description: string
+              }[],
+            })),
+            total,
+            nextCursor: page < totalPages ? page + 1 : undefined,
+          }
         }
       )
-    ),
+    }),
 
   releaseCounts: rateLimitedProcedure("query")
     .input(crossFilterInput)
@@ -387,8 +473,7 @@ export const filesRouter = router({
             releaseId: undefined,
           })
 
-          const where =
-            conditions.length > 0 ? and(...conditions) : undefined
+          const where = conditions.length > 0 ? and(...conditions) : undefined
 
           const result = await db
             .select({

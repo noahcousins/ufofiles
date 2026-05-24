@@ -55,7 +55,7 @@ export function Logo({ className }: { className?: string }) {
       >
         {PATHS.map((d, i) => (
           <motion.path
-            className={isHovered ? getRandomFlickerClass() : undefined}
+            className={cn(isHovered ? getRandomFlickerClass() : undefined)}
             d={d}
             fill="currentColor"
             key={`${i}-${hoverKey}`}

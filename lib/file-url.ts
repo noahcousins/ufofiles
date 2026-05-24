@@ -25,6 +25,11 @@ export function getStreamingVideoUrl(r2Key: string): string {
   return getFileUrl(`${prefix}/video-stream/${stem}_720p.mp4`)
 }
 
+export function getHlsPlaylistUrl(r2Key: string): string {
+  const { prefix, stem } = assetParts(r2Key)
+  return getFileUrl(`${prefix}/video-stream/${stem}/master.m3u8`)
+}
+
 export function getVideoThumbUrl(r2Key: string): string {
   const { prefix, stem } = assetParts(r2Key)
   return getFileUrl(`${prefix}/video-thumbs/${stem}_thumb.jpg`)
