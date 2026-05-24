@@ -174,7 +174,10 @@ async function syncDb(
     const { filename, key, size } = uploaded[idx]
     const meta = ZIP_META[filename] ?? {
       label: filename.replace(/\.zip$/i, "").replace(/[_-]/g, " "),
-      slug: filename.replace(/\.zip$/i, "").replace(/[^a-z0-9]+/gi, "-").toLowerCase(),
+      slug: filename
+        .replace(/\.zip$/i, "")
+        .replace(/[^a-z0-9]+/gi, "-")
+        .toLowerCase(),
       sort: 10 + idx,
     }
 

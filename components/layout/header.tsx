@@ -8,6 +8,7 @@ import {
   GlobeHemisphereWest,
   ListIcon,
   MagnifyingGlassIcon,
+  MonitorPlayIcon,
   XLogoIcon,
 } from "@phosphor-icons/react/dist/ssr"
 import Link from "next/link"
@@ -27,6 +28,7 @@ import { cn } from "@/lib/utils"
 
 const navLinks = [
   { href: "/", label: "Search", icon: MagnifyingGlassIcon },
+  { href: "/feed", label: "Feed", icon: MonitorPlayIcon },
   { href: "/globe", label: "Incident Map", icon: GlobeHemisphereWest },
   { href: "/releases", label: "Releases", icon: DownloadSimple },
   { href: "/changelog", label: "Changelog", icon: ClockCounterClockwise },
@@ -49,8 +51,8 @@ interface HeaderProps {
   children?: React.ReactNode
   mobileSearchOpen?: boolean
   newReleaseName?: string | null
-  onNewReleaseClick?: () => void
   onMobileSearchToggle?: () => void
+  onNewReleaseClick?: () => void
 }
 
 export function Header({

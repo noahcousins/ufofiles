@@ -16,7 +16,9 @@ function resolveRelease(): string {
 }
 
 function parseIncidentYear(dateStr: string | undefined): number | null {
-  if (!dateStr) return null
+  if (!dateStr) {
+    return null
+  }
   const match = dateStr.match(YEAR_RE)
   return match ? Number.parseInt(match[1], 10) : null
 }
@@ -86,7 +88,9 @@ async function main() {
     .where(eq(releases.name, release))
     .limit(1)
 
-  if (!releaseRow) {
+  if (releaseRow) {
+    console.log(`Release "${release}" already exists (id=${releaseRow.id})`)
+  } else {
     ;[releaseRow] = await db
       .insert(releases)
       .values({
@@ -97,8 +101,6 @@ async function main() {
       })
       .returning()
     console.log(`Created release "${release}" (id=${releaseRow.id})`)
-  } else {
-    console.log(`Release "${release}" already exists (id=${releaseRow.id})`)
   }
 
   if (shouldClean) {
@@ -114,11 +116,15 @@ async function main() {
     .from(files)
     .where(eq(files.releaseId, releaseRow.id))
   const existingTitles = new Set(existing.map((f) => f.title))
-  console.log(`${existingTitles.size} file records already exist for this release\n`)
+  console.log(
+    `${existingTitles.size} file records already exist for this release\n`
+  )
 
   let inserted = 0
   for (const r of records) {
-    if (existingTitles.has(r.title)) continue
+    if (existingTitles.has(r.title)) {
+      continue
+    }
 
     await db.insert(files).values({
       releaseId: releaseRow.id,

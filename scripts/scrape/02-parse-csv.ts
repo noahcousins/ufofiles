@@ -1,6 +1,12 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { CSV_PATH, PROJECT_ROOT, RECORDS_PATH, RELEASE, URLS_PATH } from "./config"
+import {
+  CSV_PATH,
+  PROJECT_ROOT,
+  RECORDS_PATH,
+  RELEASE,
+  URLS_PATH,
+} from "./config"
 import { mapRowToRecord, parseCSV } from "./csv-parser"
 import { info } from "./logger"
 import type { UfoRecord } from "./types"
@@ -28,7 +34,9 @@ export function main() {
       releaseDates.set(d, (releaseDates.get(d) || 0) + 1)
     }
     info("Release dates found in CSV:")
-    for (const [d, c] of releaseDates) info(`  ${d}: ${c} records`)
+    for (const [d, c] of releaseDates) {
+      info(`  ${d}: ${c} records`)
+    }
 
     // Keep only records NOT matching release-1's date
     const release1Date = "5/8/26"

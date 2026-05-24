@@ -216,7 +216,9 @@ function TagButton({
   }, [open])
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      return
+    }
     document.body.style.overflow = "hidden"
     return () => {
       document.body.style.overflow = ""

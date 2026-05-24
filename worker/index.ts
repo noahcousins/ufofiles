@@ -50,13 +50,17 @@ function getMimeType(key: string): string {
     gif: "image/gif",
     webp: "image/webp",
     json: "application/json",
+    m3u8: "application/vnd.apple.mpegurl",
+    ts: "video/mp2t",
   }
   return types[ext ?? ""] ?? "application/octet-stream"
 }
 
 function isExemptFromRateLimit(key: string): boolean {
   const ext = key.split(".").pop()?.toLowerCase() ?? ""
-  return ["json", "jpg", "jpeg", "png", "webp", "gif"].includes(ext)
+  return ["json", "jpg", "jpeg", "png", "webp", "gif", "m3u8", "ts"].includes(
+    ext
+  )
 }
 
 async function checkRateLimit(

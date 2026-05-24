@@ -25,13 +25,18 @@ async function main() {
   const lines = csv.split("\n").filter((l) => l.trim())
   console.log(`Saved ${lines.length} lines to ${outPath}`)
   console.log(`\nHeaders:\n${lines[0]}`)
-  console.log(`\nFirst 3 data rows:`)
+  console.log("\nFirst 3 data rows:")
   for (const line of lines.slice(1, 4)) {
     console.log(line.slice(0, 200))
   }
 
   // Check for release 2 records
-  const r2 = lines.filter((l) => l.includes("Release 02") || l.includes("release_02") || l.includes("5/22/26"))
+  const r2 = lines.filter(
+    (l) =>
+      l.includes("Release 02") ||
+      l.includes("release_02") ||
+      l.includes("5/22/26")
+  )
   console.log(`\nRelease 02 records found: ${r2.length}`)
   if (r2.length > 0) {
     console.log("Sample release 02 row:")

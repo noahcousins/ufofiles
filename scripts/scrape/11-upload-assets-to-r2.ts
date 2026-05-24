@@ -113,13 +113,62 @@ function collectFlatDir(
   }
 }
 
+function hlsMimeType(filename: string): string {
+  if (filename.endsWith(".m3u8")) {
+    return "application/vnd.apple.mpegurl"
+  }
+  if (filename.endsWith(".ts")) {
+    return "video/mp2t"
+  }
+  if (filename.endsWith(".mp4")) {
+    return "video/mp4"
+  }
+  return "application/octet-stream"
+}
+
+/** collect HLS directories + MP4 downloads from video-stream/ */
+function collectVideoStream(files: AssetFile[]): void {
+  try {
+    for (const entry of readdirSync(VIDEO_STREAM_DIR)) {
+      const entryPath = join(VIDEO_STREAM_DIR, entry)
+      const stat = statSync(entryPath)
+
+      if (stat.isFile() && entry.endsWith(".mp4")) {
+        files.push({
+          key: `${RELEASE}/video-stream/${entry}`,
+          localPath: entryPath,
+          contentType: "video/mp4",
+        })
+      } else if (stat.isDirectory()) {
+        const walk = (dir: string, r2Base: string) => {
+          for (const child of readdirSync(dir)) {
+            const childPath = join(dir, child)
+            if (statSync(childPath).isDirectory()) {
+              walk(childPath, `${r2Base}/${child}`)
+            } else {
+              files.push({
+                key: `${r2Base}/${child}`,
+                localPath: childPath,
+                contentType: hlsMimeType(child),
+              })
+            }
+          }
+        }
+        walk(entryPath, `${RELEASE}/video-stream/${entry}`)
+      }
+    }
+  } catch {
+    // dir may not exist
+  }
+}
+
 /** collect all asset files to upload. */
 function collectAssetFiles(): AssetFile[] {
   const files: AssetFile[] = []
   collectPdfPages(files)
   collectVideoPreviews(files)
   collectFlatDir(CARD_THUMB_DIR, ".webp", "card-thumbs", "image/webp", files)
-  collectFlatDir(VIDEO_STREAM_DIR, ".mp4", "video-stream", "video/mp4", files)
+  collectVideoStream(files)
   collectFlatDir(TRANSCRIPT_DIR, ".txt", "transcripts", "text/plain", files)
   return files
 }

@@ -86,6 +86,14 @@ export const STREAM_VIDEO_CRF = 20
 export const STREAM_VIDEO_PRESET = "slow"
 export const STREAM_AUDIO_BITRATE = "128k"
 
+// HLS transcoding
+export const HLS_SEGMENT_DURATION = 4
+export const HLS_RENDITIONS = [
+  { height: 360, crf: 23, bitrate: "600k", audioBitrate: "96k" },
+  { height: 720, crf: 20, bitrate: "2000k", audioBitrate: "128k" },
+  { height: 1080, crf: 18, bitrate: "4000k", audioBitrate: "128k" },
+] as const
+
 // ---------------------------------------------------------------------------
 // R2 upload settings
 // ---------------------------------------------------------------------------
