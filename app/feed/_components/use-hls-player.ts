@@ -2,14 +2,14 @@ import Hls from "hls.js"
 import { useEffect, useState } from "react"
 
 export function useHlsPlayer(
-  videoRef: React.RefObject<HTMLVideoElement | null>,
+  video: HTMLVideoElement | null,
   hlsUrl: string | null
 ): { isReady: boolean } {
   const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
-    const video = videoRef.current
     if (!video) {
+      setIsReady(false)
       return
     }
 
@@ -22,13 +22,16 @@ export function useHlsPlayer(
 
     setIsReady(false)
 
-    const onCanPlay = () => setIsReady(true)
+    const onCanPlay = () => {
+      setIsReady(true)
+    }
     video.addEventListener("canplay", onCanPlay, { once: true })
 
     let hls: Hls | null = null
 
     if (Hls.isSupported()) {
       hls = new Hls({
+        backBufferLength: 10,
         maxBufferLength: 10,
         maxMaxBufferLength: 30,
       })
@@ -51,8 +54,15 @@ export function useHlsPlayer(
       if (hls) {
         hls.destroy()
       }
+      // Force WebKit to release the media pipeline NOW and blank the element
+      // for its next pooled use. Unmounting/destroying alone leaves the
+      // platform media player alive until GC; on iOS the device caps
+      // concurrent pipelines and leaked ones stop later videos from playing.
+      video.pause()
+      video.removeAttribute("src")
+      video.load()
     }
-  }, [hlsUrl, videoRef])
+  }, [hlsUrl, video])
 
   return { isReady }
 }

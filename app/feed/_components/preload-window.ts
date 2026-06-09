@@ -1,7 +1,8 @@
 export type ScrollDirection = "down" | "up"
 export type LoadState = "active" | "preload" | "idle"
 
-const MAX_AHEAD = 6
+// iOS Safari (Low Power Mode) limits concurrent media elements — keep this low
+const MAX_AHEAD = 2
 const MAX_BEHIND = 1
 
 export function computeLoadState(
