@@ -17,7 +17,7 @@ const RELEASE_OG_IMAGES: Record<
     title: "Official UFO Files Release 03 | [ufo]files",
     description:
       "Official release of declassified UFO and UAP files from June 12, 2026.",
-    image: `${process.env.NEXT_PUBLIC_WORKER_URL}/assets/static/release-03-og-image.jpg`,
+    image: `${process.env.NEXT_PUBLIC_WORKER_URL}/assets/static/release-03-og-image-v2.jpg`,
   },
 }
 
