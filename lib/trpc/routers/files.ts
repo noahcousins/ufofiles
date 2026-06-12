@@ -95,6 +95,77 @@ function buildFilterConditions(input: {
   return conditions
 }
 
+// Shared column projection + row mapper for the video feed, so the paginated
+// feed and the single-video "start here" lookup return identical item shapes.
+const feedColumns = sql`
+  f.id,
+  f.title,
+  f.agency,
+  f.r2_key,
+  f.file_size,
+  f.mime_type,
+  f.incident_date,
+  f.incident_location,
+  f.description,
+  COALESCE(
+    (SELECT json_agg(json_build_object('slug', t.slug, 'label', t.label))
+     FROM file_tags ft
+     JOIN tags t ON t.id = ft.tag_id
+     WHERE ft.file_id = f.id),
+    '[]'::json
+  ) AS tags,
+  COALESCE(
+    (SELECT json_agg(
+       json_build_object(
+         'id', vm.id,
+         'startSeconds', vm.start_seconds,
+         'endSeconds', vm.end_seconds,
+         'description', vm.description
+       ) ORDER BY vm.sort_order
+     )
+     FROM video_moments vm
+     WHERE vm.file_id = f.id),
+    '[]'::json
+  ) AS moments
+`
+
+interface FeedRow {
+  agency: string | null
+  description: string | null
+  file_size: number | string | null
+  id: number
+  incident_date: string | null
+  incident_location: string | null
+  mime_type: string | null
+  moments:
+    | {
+        id: number
+        startSeconds: number
+        endSeconds: number | null
+        description: string
+      }[]
+    | null
+  r2_key: string | null
+  tags: { slug: string; label: string }[] | null
+  title: string
+}
+
+function mapFeedRow(row: FeedRow) {
+  return {
+    id: row.id,
+    title: row.title,
+    agency: row.agency,
+    r2Key: row.r2_key,
+    fileSize: row.file_size ? Number(row.file_size) : null,
+    mimeType: row.mime_type,
+    incidentDate: row.incident_date,
+    incidentLocation: row.incident_location,
+    description: row.description,
+    tags: row.tags ?? [],
+    moments: row.moments ?? [],
+  }
+}
+
 export const filesRouter = router({
   list: rateLimitedProcedure("query")
     .input(
@@ -112,6 +183,11 @@ export const filesRouter = router({
         sortBy: z
           .enum(["newest", "oldest", "most-views", "least-views"])
           .default("most-views"),
+        // A deep-linked file to surface first (e.g. the feed's "Details").
+        // Still subject to the filters above — it only appears if it matches,
+        // so filtering stays correct; when present and matching, it sorts to
+        // the front so its modal opens without paging to find it.
+        priorityId: z.number().int().positive().optional(),
       })
     )
     .query(async ({ input }) => {
@@ -120,7 +196,7 @@ export const filesRouter = router({
       const page = cursor ?? 1
 
       return withCache(
-        cacheKey("files:list:v7", {
+        cacheKey("files:list:v8", {
           search: input.search,
           agency: input.agency,
           type: input.type,
@@ -130,6 +206,7 @@ export const filesRouter = router({
           page,
           pageSize,
           sortBy,
+          priorityId: input.priorityId,
         }),
         SIX_HOURS,
         async () => {
@@ -163,6 +240,12 @@ export const filesRouter = router({
           const sortByViews =
             sortBy === "most-views" || sortBy === "least-views"
 
+          // When a priority file is requested, sort it to the very front (it
+          // still has to pass `where`, so it drops out when filtered away).
+          const priorityOrder = input.priorityId
+            ? [sql`(${files.id} = ${input.priorityId}) DESC`]
+            : []
+
           const items = sortByViews
             ? await (() => {
                 const viewCountExpr = sql<number>`(SELECT COUNT(*)::int FROM events WHERE events.file_id = ${files.id} AND events.type = 'view')`
@@ -171,7 +254,11 @@ export const filesRouter = router({
                   .select(listColumns)
                   .from(files)
                   .where(where)
-                  .orderBy(orderFn(viewCountExpr), desc(files.createdAt))
+                  .orderBy(
+                    ...priorityOrder,
+                    orderFn(viewCountExpr),
+                    desc(files.createdAt)
+                  )
                   .limit(pageSize)
                   .offset((page - 1) * pageSize)
               })()
@@ -179,7 +266,10 @@ export const filesRouter = router({
                 .select(listColumns)
                 .from(files)
                 .where(where)
-                .orderBy((sortBy === "newest" ? desc : asc)(files.createdAt))
+                .orderBy(
+                  ...priorityOrder,
+                  (sortBy === "newest" ? desc : asc)(files.createdAt)
+                )
                 .limit(pageSize)
                 .offset((page - 1) * pageSize)
 
@@ -385,36 +475,7 @@ export const filesRouter = router({
         SIX_HOURS,
         async () => {
           const feedQuery = sql`
-            SELECT
-              f.id,
-              f.title,
-              f.agency,
-              f.r2_key,
-              f.file_size,
-              f.mime_type,
-              f.incident_date,
-              f.incident_location,
-              f.description,
-              COALESCE(
-                (SELECT json_agg(json_build_object('slug', t.slug, 'label', t.label))
-                 FROM file_tags ft
-                 JOIN tags t ON t.id = ft.tag_id
-                 WHERE ft.file_id = f.id),
-                '[]'::json
-              ) AS tags,
-              COALESCE(
-                (SELECT json_agg(
-                   json_build_object(
-                     'id', vm.id,
-                     'startSeconds', vm.start_seconds,
-                     'endSeconds', vm.end_seconds,
-                     'description', vm.description
-                   ) ORDER BY vm.sort_order
-                 )
-                 FROM video_moments vm
-                 WHERE vm.file_id = f.id),
-                '[]'::json
-              ) AS moments
+            SELECT ${feedColumns}
             FROM files f
             WHERE f.mime_type ILIKE 'video/%' AND f.r2_key IS NOT NULL
               AND f.r2_key LIKE 'source/release-2/%'
@@ -436,30 +497,36 @@ export const filesRouter = router({
           const totalPages = Math.ceil(total / pageSize)
 
           return {
-            items: (items as any[]).map((row: any) => ({
-              id: row.id as number,
-              title: row.title as string,
-              agency: row.agency as string | null,
-              r2Key: row.r2_key as string | null,
-              fileSize: row.file_size ? Number(row.file_size) : null,
-              mimeType: row.mime_type as string | null,
-              incidentDate: row.incident_date as string | null,
-              incidentLocation: row.incident_location as string | null,
-              description: row.description as string | null,
-              tags: (row.tags ?? []) as { slug: string; label: string }[],
-              moments: (row.moments ?? []) as {
-                id: number
-                startSeconds: number
-                endSeconds: number | null
-                description: string
-              }[],
-            })),
+            items: (items as FeedRow[]).map(mapFeedRow),
             total,
             nextCursor: page < totalPages ? page + 1 : undefined,
           }
         }
       )
     }),
+
+  // The single video a share link points at, in the feed item shape, so the
+  // feed can pin it first and then randomize the rest from there.
+  feedVideoById: rateLimitedProcedure("query")
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(({ input }) =>
+      withCache(
+        cacheKey("files:feedVideoById:v1", { id: input.id }),
+        SIX_HOURS,
+        async () => {
+          const rows = await db.execute(sql`
+            SELECT ${feedColumns}
+            FROM files f
+            WHERE f.id = ${input.id}
+              AND f.mime_type ILIKE 'video/%'
+              AND f.r2_key IS NOT NULL
+            LIMIT 1
+          `)
+          const row = (rows as FeedRow[])[0]
+          return row ? mapFeedRow(row) : null
+        }
+      )
+    ),
 
   releaseCounts: rateLimitedProcedure("query")
     .input(crossFilterInput)

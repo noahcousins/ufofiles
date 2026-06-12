@@ -27,5 +27,5 @@ export const metadata: Metadata = {
 }
 
 export default function Release2Page() {
-  redirect("/?release=release-2")
+  redirect("/files?release=release-2")
 }

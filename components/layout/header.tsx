@@ -2,50 +2,21 @@
 
 import {
   ArrowRightIcon,
-  ClockCounterClockwise,
-  DownloadSimple,
-  GithubLogoIcon,
-  GlobeHemisphereWest,
-  ListIcon,
   MagnifyingGlassIcon,
-  MonitorPlayIcon,
-  XLogoIcon,
+  SignInIcon,
+  SignOutIcon,
+  UserCircleIcon,
 } from "@phosphor-icons/react/dist/ssr"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
+import { AuthDialog } from "@/components/auth/auth-dialog"
+import { MobileNav } from "@/components/layout/mobile-nav"
+import { navLinks, socialLinks } from "@/components/layout/nav-items"
 import { Button } from "@/components/ui/button"
 import { Logo } from "@/components/ui/logo"
-import { Separator } from "@/components/ui/separator"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet"
+import { isMember, signOut, useSession } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
-
-const navLinks = [
-  { href: "/", label: "Search", icon: MagnifyingGlassIcon },
-  { href: "/feed", label: "Feed", icon: MonitorPlayIcon },
-  { href: "/globe", label: "Incident Map", icon: GlobeHemisphereWest },
-  { href: "/releases", label: "Releases", icon: DownloadSimple },
-  { href: "/changelog", label: "Changelog", icon: ClockCounterClockwise },
-]
-
-const socialLinks = [
-  {
-    href: "https://x.com/noahwebdev",
-    label: "X (Twitter)",
-    icon: XLogoIcon,
-  },
-  {
-    href: "https://github.com/noahcousins/ufofiles",
-    label: "GitHub",
-    icon: GithubLogoIcon,
-  },
-]
 
 interface HeaderProps {
   children?: React.ReactNode
@@ -63,8 +34,15 @@ export function Header({
   onMobileSearchToggle,
 }: HeaderProps) {
   const pathname = usePathname()
-  const [open, setOpen] = useState(false)
-  const isMainPage = pathname === "/"
+  const [authOpen, setAuthOpen] = useState(false)
+  const isMainPage = pathname === "/files"
+
+  const { data: session } = useSession()
+  const member = isMember(session?.user)
+
+  const handleSignOut = () => {
+    signOut()
+  }
 
   return (
     <header className="sticky top-0 z-40 border-border/40 border-b bg-background">
@@ -73,7 +51,7 @@ export function Header({
           <Logo className="h-3.5" />
           {newReleaseName && (
             <Link
-              href={`/?release=${encodeURIComponent(newReleaseName)}`}
+              href={`/files?release=${encodeURIComponent(newReleaseName)}`}
               onClick={onNewReleaseClick}
             >
               <Button size="xs" variant="default">
@@ -113,6 +91,40 @@ export function Header({
               <Icon className="size-4" />
             </Link>
           ))}
+
+          <span className="mx-1.5 h-4 w-px shrink-0 self-center bg-border/60" />
+
+          {member ? (
+            <>
+              <Link
+                aria-label="Library"
+                className={cn(
+                  "inline-flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground",
+                  pathname === "/library" && "text-foreground"
+                )}
+                href="/library"
+              >
+                <UserCircleIcon className="size-4" weight="fill" />
+              </Link>
+              <button
+                aria-label="Sign out"
+                className="inline-flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                onClick={handleSignOut}
+                type="button"
+              >
+                <SignOutIcon className="size-4" />
+              </button>
+            </>
+          ) : (
+            <Button
+              onClick={() => setAuthOpen(true)}
+              size="sm"
+              variant="default"
+            >
+              <SignInIcon className="size-4" />
+              Sign in
+            </Button>
+          )}
         </div>
 
         <div className="flex items-center gap-1 lg:hidden">
@@ -132,64 +144,18 @@ export function Header({
             <Link
               aria-label="Search files"
               className="inline-flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-              href="/?searchOpen=1"
+              href="/files?searchOpen=1"
             >
               <MagnifyingGlassIcon className="size-5" />
             </Link>
           )}
 
-          <Sheet onOpenChange={setOpen} open={open}>
-            <SheetTrigger
-              aria-label="Open menu"
-              className="inline-flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <ListIcon className="size-5" />
-            </SheetTrigger>
-            <SheetContent className="w-72 rounded-none" side="right">
-              <SheetHeader>
-                <Logo className="h-6" />
-                <SheetTitle className="sr-only">Navigation</SheetTitle>
-              </SheetHeader>
-              <nav className="flex flex-col gap-0.5 p-4">
-                {navLinks.map(({ href, label, icon: Icon }) => (
-                  <Link
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-3 font-medium text-lg text-muted-foreground transition-all hover:bg-muted hover:text-foreground active:translate-y-px",
-                      pathname === href && "bg-muted text-foreground"
-                    )}
-                    href={href}
-                    key={href}
-                    onClick={() => setOpen(false)}
-                  >
-                    <Icon className="size-8" />
-                    {label}
-                  </Link>
-                ))}
-              </nav>
-              <Separator className="w-full" />
-              <nav className="flex flex-col gap-0.5 p-4">
-                {socialLinks.map(({ href, label, icon: Icon }) => (
-                  <Link
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-3 font-medium text-lg text-muted-foreground transition-all hover:bg-muted hover:text-foreground active:translate-y-px",
-                      pathname === href && "bg-muted text-foreground"
-                    )}
-                    href={href}
-                    key={href}
-                    onClick={() => setOpen(false)}
-                    rel="noopener noreferrer"
-                    target="_blank"
-                  >
-                    <Icon className="size-8" />
-                    {label}
-                  </Link>
-                ))}
-              </nav>
-            </SheetContent>
-          </Sheet>
+          <MobileNav />
         </div>
       </div>
       {children}
+
+      <AuthDialog onOpenChange={setAuthOpen} open={authOpen} />
     </header>
   )
 }

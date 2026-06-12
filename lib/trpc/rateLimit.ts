@@ -10,7 +10,9 @@ interface RateLimitConfig {
 export const RATE_LIMITS = {
   view: { maxRequests: 1, windowSeconds: 60 },
   query: { maxRequests: 60, windowSeconds: 60 },
-  mutation: { maxRequests: 20, windowSeconds: 60 },
+  // Global per-user write cap (and per-IP for Guests). 40/min is generous for a
+  // human marking through the feed while still capping scripted abuse.
+  mutation: { maxRequests: 40, windowSeconds: 60 },
 } as const satisfies Record<string, RateLimitConfig>
 
 export type RateLimitAction = keyof typeof RATE_LIMITS

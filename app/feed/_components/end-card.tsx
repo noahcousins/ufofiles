@@ -33,7 +33,7 @@ export function EndCard({ onShuffle }: EndCardProps) {
           <ArrowCounterClockwise className="size-4" />
           Shuffle &amp; restart
         </Button>
-        <Link href="/">
+        <Link href="/files">
           <Button className="w-full gap-2" size="lg" variant="outline">
             <MagnifyingGlassIcon className="size-4" />
             Browse all files
