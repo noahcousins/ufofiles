@@ -10,9 +10,12 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Logo } from "@/components/ui/logo"
+import { Turnstile } from "@/components/ui/turnstile"
 import { signIn, signUp } from "@/lib/auth-client"
 import { trpc } from "@/lib/trpc/client"
 import { cn } from "@/lib/utils"
+
+const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
 
 interface AuthDialogProps {
   /** Where to land after sign-in. Defaults to the Library. */
@@ -36,12 +39,21 @@ export function AuthDialog({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [magicSent, setMagicSent] = useState(false)
+  // Turnstile token + a key to force a fresh widget (tokens are single-use, so
+  // we remount the widget after every submit).
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const [captchaKey, setCaptchaKey] = useState(0)
 
   const config = trpc.me.config.useQuery(undefined, { enabled: open })
 
   const reset = () => {
     setError(null)
     setMagicSent(false)
+  }
+
+  const resetCaptcha = () => {
+    setCaptchaToken(null)
+    setCaptchaKey((k) => k + 1)
   }
 
   const handleGoogle = () => {
@@ -58,12 +70,20 @@ export function AuthDialog({
     reset()
     setPending(true)
 
+    // When Turnstile is configured, attach the token; the server rejects the
+    // request without it (the submit button stays disabled until it resolves).
+    const fetchOptions = captchaToken
+      ? { headers: { "x-captcha-response": captchaToken } }
+      : undefined
+
     if (method === "magic") {
       const { error: err } = await signIn.magicLink({
         email: email.trim(),
         callbackURL,
+        fetchOptions,
       })
       setPending(false)
+      resetCaptcha()
       if (err) {
         setError(err.message ?? "Couldn't send the link. Try again.")
       } else {
@@ -79,12 +99,19 @@ export function AuthDialog({
             password,
             name: email.trim().split("@")[0] ?? "",
             callbackURL,
+            fetchOptions,
           })
-        : await signIn.email({ email: email.trim(), password, callbackURL })
+        : await signIn.email({
+            email: email.trim(),
+            password,
+            callbackURL,
+            fetchOptions,
+          })
 
     setPending(false)
     if (result.error) {
       setError(result.error.message ?? "Something went wrong. Try again.")
+      resetCaptcha()
       return
     }
     // Land on the destination with a fresh session.
@@ -176,9 +203,19 @@ export function AuthDialog({
                     />
                   )}
 
+                  {turnstileSiteKey && (
+                    <Turnstile
+                      key={captchaKey}
+                      onToken={setCaptchaToken}
+                      siteKey={turnstileSiteKey}
+                    />
+                  )}
+
                   <Button
                     className="w-full"
-                    disabled={pending}
+                    disabled={
+                      pending || (Boolean(turnstileSiteKey) && !captchaToken)
+                    }
                     size="lg"
                     type="submit"
                   >

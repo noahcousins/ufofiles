@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { nextCookies } from "better-auth/next-js"
-import { anonymous, magicLink } from "better-auth/plugins"
+import { anonymous, captcha, magicLink } from "better-auth/plugins"
 import { mergeGuestMarksIntoMember } from "@/lib/auth/merge-marks"
 import { db } from "@/lib/db"
 import { account, session, user, verification } from "@/lib/db/schema"
@@ -9,6 +9,27 @@ import { sendMagicLinkEmail, sendVerificationEmail } from "@/lib/email"
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET
+
+// Cloudflare Turnstile guards the email/credential endpoints (NOT the silent
+// anonymous guest mint — that must stay frictionless). Only enabled when BOTH
+// keys are present: enabling the server check without the client widget would
+// reject every real sign-in with MISSING_RESPONSE.
+const turnstileSecret = process.env.TURNSTILE_SECRET_KEY
+const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
+const captchaPlugins =
+  turnstileSecret && turnstileSiteKey
+    ? [
+        captcha({
+          provider: "cloudflare-turnstile",
+          secretKey: turnstileSecret,
+          endpoints: [
+            "/sign-up/email",
+            "/sign-in/email",
+            "/sign-in/magic-link",
+          ],
+        }),
+      ]
+    : []
 
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
@@ -83,6 +104,8 @@ export const auth = betterAuth({
         await sendMagicLinkEmail(email, url)
       },
     }),
+
+    ...captchaPlugins,
 
     // Must be last: lets better-auth set cookies from Next server actions.
     nextCookies(),
