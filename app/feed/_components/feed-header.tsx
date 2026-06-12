@@ -21,15 +21,15 @@ export function FeedHeader() {
     // pointer-events-none lets taps fall through to the video; the interactive
     // bits opt back in.
     <div className="pointer-events-none fixed inset-x-0 top-0 z-40">
-      {/* Mobile: progressively blur the video out behind the header so the logo
-          + tabs stay legible. Desktop keeps the plain dark gradient below. */}
+      {/* Progressively blur the video out behind the header (desktop + mobile)
+          so the logo + tabs stay legible while the video stays visible. */}
       <ProgressiveBlur
-        blurIntensity={2}
+        blurIntensity={3}
         blurLayers={6}
-        className="absolute inset-x-0 top-0 h-28 lg:hidden"
+        className="absolute inset-x-0 top-0 h-32"
         direction="top"
       />
-      <div className="relative bg-gradient-to-b from-black/40 to-transparent pb-3 lg:from-black/70">
+      <div className="relative bg-gradient-to-b from-black/30 to-transparent pb-3">
         <div className="relative flex items-center justify-center px-4 py-3">
           <Logo className="pointer-events-auto h-3" />
           {/* Mobile only — desktop uses the top-right auth control. */}
