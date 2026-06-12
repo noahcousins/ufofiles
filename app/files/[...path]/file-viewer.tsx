@@ -13,7 +13,11 @@ import posthog from "posthog-js"
 import { useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { prefetchIfNew } from "@/lib/file-cache"
-import { getFileUrl, getStreamingVideoUrl } from "@/lib/file-url"
+import {
+  getFileUrl,
+  getStreamingVideoUrl,
+  withDownloadParam,
+} from "@/lib/file-url"
 import { trpc } from "@/lib/trpc/client"
 import { cn } from "@/lib/utils"
 import { PdfViewer } from "./pdf-viewer"
@@ -86,6 +90,7 @@ export function FileViewer({
 }) {
   const router = useRouter()
   const fileUrl = getFileUrl(fileKey)
+  const downloadUrl = withDownloadParam(fileUrl)
   const fileType = getFileType(fileKey)
 
   const recordView = trpc.telemetry.recordView.useMutation()
@@ -140,7 +145,7 @@ export function FileViewer({
         )}
       >
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <Link href="/">
+          <Link href="/files">
             <Button className="sm:hidden" size="sm" variant="outline">
               <ArrowLeftIcon className="size-3.5" />
             </Button>
@@ -241,7 +246,7 @@ export function FileViewer({
 
           <a
             download
-            href={fileUrl}
+            href={downloadUrl}
             onClick={() =>
               posthog.capture("file_viewer_downloaded", {
                 file_key: fileKey,
@@ -285,7 +290,7 @@ export function FileViewer({
               <p className="text-muted-foreground text-sm">
                 Cannot display PDF inline.
               </p>
-              <a download href={fileUrl}>
+              <a download href={downloadUrl}>
                 <Button>Download PDF</Button>
               </a>
             </div>
@@ -320,7 +325,7 @@ export function FileViewer({
             <p className="text-muted-foreground text-sm">
               Cannot preview this file type.
             </p>
-            <a download href={fileUrl}>
+            <a download href={downloadUrl}>
               <Button>Download File</Button>
             </a>
           </div>

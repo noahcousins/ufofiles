@@ -17,6 +17,15 @@ import { fileExists, requireBinary } from "./utils"
 
 const MP4_EXT_RE = /\.mp4$/i
 
+// Optional CPU throttle: set FFMPEG_THREADS to cap x264 worker threads (cooler,
+// slower). Unset = use all cores (default ffmpeg behavior, unchanged).
+const FFMPEG_THREADS = process.env.FFMPEG_THREADS
+const threadArgs = FFMPEG_THREADS ? ["-threads", FFMPEG_THREADS] : []
+
+// Optional preset override: set FFMPEG_PRESET (e.g. "veryfast") to trade a bit
+// of compression efficiency for much faster encodes. Unset = config default.
+const PRESET = process.env.FFMPEG_PRESET ?? STREAM_VIDEO_PRESET
+
 function probeHeight(inputPath: string): number {
   try {
     const out = execSync(
@@ -102,12 +111,13 @@ export function main() {
             "-y",
             "-i",
             inputPath,
+            ...threadArgs,
             "-vf",
             `scale=-2:${STREAM_VIDEO_HEIGHT}`,
             "-c:v",
             "libx264",
             "-preset",
-            STREAM_VIDEO_PRESET,
+            PRESET,
             "-crf",
             String(STREAM_VIDEO_CRF),
             "-c:a",
@@ -151,12 +161,13 @@ export function main() {
             "-y",
             "-i",
             inputPath,
+            ...threadArgs,
             "-vf",
             `scale=-2:${rendition.height}`,
             "-c:v",
             "libx264",
             "-preset",
-            STREAM_VIDEO_PRESET,
+            PRESET,
             "-crf",
             String(rendition.crf),
             "-maxrate",

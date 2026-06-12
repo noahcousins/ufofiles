@@ -32,8 +32,19 @@ export const URLS_PATH = join(PROJECT_ROOT, `ufo-download-urls-${RELEASE}.txt`)
 // Remote URLs
 // ---------------------------------------------------------------------------
 export const CSV_URL =
-  "https://www.war.gov/Portals/1/Interactive/2026/UFO/uap-csv.csv"
+  "https://www.war.gov/Portals/1/Interactive/2026/UFO/uap-data.csv"
 export const WAR_GOV_UFO = "https://www.war.gov/UFO/"
+
+// ---------------------------------------------------------------------------
+// Release publication dates, exactly as they appear in the CSV "Release Date"
+// column. The CSV is a single combined file containing every release; records
+// are partitioned by this date. Add the new date here when a release drops.
+// ---------------------------------------------------------------------------
+export const RELEASE_DATES: Record<string, string> = {
+  "release-1": "5/8/26",
+  "release-2": "5/22/26",
+  "release-3": "6/12/26",
+}
 
 // ---------------------------------------------------------------------------
 // DVIDS API

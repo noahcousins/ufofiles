@@ -122,9 +122,16 @@ export function FileBrowser() {
     ? releasesList.find((r) => r.name === filters.release)?.id
     : undefined
 
+  // A deep link (e.g. the feed's "Details") lands with `?fileId` set. Pass it
+  // once as the list query's priorityId so that file sorts to the front of the
+  // real (still-filtered) results and its modal opens without paging to it.
+  // Captured on mount so clicking around the grid doesn't re-sort it.
+  const priorityIdRef = useRef(filters.fileId)
+
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
     trpc.files.list.useInfiniteQuery(
       {
+        priorityId: priorityIdRef.current ?? undefined,
         search: searchParams.get("search") || undefined,
         agency: searchParams.get("agency") || undefined,
         type:

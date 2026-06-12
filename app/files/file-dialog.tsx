@@ -26,7 +26,11 @@ import {
   MorphingDialogTitle,
   useMorphingDialog,
 } from "@/components/ui/morphing-dialog"
-import { getFileUrl, getStreamingVideoUrl } from "@/lib/file-url"
+import {
+  getFileUrl,
+  getStreamingVideoUrl,
+  withDownloadParam,
+} from "@/lib/file-url"
 import { cn, formatFileSize } from "@/lib/utils"
 import {
   type FileItem,
@@ -857,7 +861,7 @@ export function FileDialog({
             {file.r2Key && (
               <a
                 download
-                href={getFileUrl(file.r2Key)}
+                href={withDownloadParam(getFileUrl(file.r2Key))}
                 onClick={(e) => {
                   e.stopPropagation()
                   posthog.capture("file_downloaded", {

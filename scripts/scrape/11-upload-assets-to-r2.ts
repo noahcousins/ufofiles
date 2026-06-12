@@ -252,57 +252,70 @@ export async function main() {
   // always upload manifest (small, may have changed)
   const manifestKey = `${RELEASE}/pdf-pages/manifest.json`
 
-  for (let i = 0; i < previewFiles.length; i++) {
-    const pf = previewFiles[i]
-    const localStat = statSync(pf.localPath)
-    const remoteSize = existing.get(pf.key)
+  // The asset tree is thousands of tiny files (HLS segments, page images);
+  // sequential uploads are round-trip-bound, so fan out across N workers.
+  const CONCURRENCY = Number(process.env.ASSET_UPLOAD_CONCURRENCY ?? 12)
+  let cursor = 0
+  let processed = 0
 
-    // skip if already uploaded with matching size (except manifest)
-    if (
-      pf.key !== manifestKey &&
-      remoteSize !== undefined &&
-      remoteSize === localStat.size
-    ) {
-      progress(i, stats.total, "SKIP", pf.key)
-      stats.skipped++
-      stats.success++
-      continue
-    }
+  async function worker() {
+    while (true) {
+      const i = cursor++
+      if (i >= previewFiles.length) {
+        return
+      }
+      const pf = previewFiles[i]
+      const localStat = statSync(pf.localPath)
+      const remoteSize = existing.get(pf.key)
 
-    try {
-      const kb = (localStat.size / 1024).toFixed(0)
-      process.stdout.write(
-        `[${i + 1}/${stats.total}] Uploading: ${pf.key} (${kb} KB)...`
-      )
+      // skip if already uploaded with matching size (except manifest)
+      if (
+        pf.key !== manifestKey &&
+        remoteSize !== undefined &&
+        remoteSize === localStat.size
+      ) {
+        stats.skipped++
+        stats.success++
+      } else {
+        try {
+          // use readFileSync for small files, streaming for larger ones
+          const body =
+            localStat.size < 5 * 1024 * 1024
+              ? readFileSync(pf.localPath)
+              : createReadStream(pf.localPath)
 
-      // use readFileSync for small files, streaming for larger ones
-      const body =
-        localStat.size < 5 * 1024 * 1024
-          ? readFileSync(pf.localPath)
-          : createReadStream(pf.localPath)
+          const upload = new Upload({
+            client: s3,
+            params: {
+              Bucket: bucket,
+              Key: pf.key,
+              Body: body,
+              ContentType: pf.contentType,
+            },
+            queueSize: UPLOAD_QUEUE_SIZE,
+            partSize: UPLOAD_PART_SIZE,
+          })
 
-      const upload = new Upload({
-        client: s3,
-        params: {
-          Bucket: bucket,
-          Key: pf.key,
-          Body: body,
-          ContentType: pf.contentType,
-        },
-        queueSize: UPLOAD_QUEUE_SIZE,
-        partSize: UPLOAD_PART_SIZE,
-      })
+          await upload.done()
+          stats.success++
+        } catch (err: unknown) {
+          const msg =
+            err instanceof Error ? err.message.slice(0, 120) : String(err)
+          progress(processed, stats.total, "FAIL", pf.key, msg)
+          stats.failed++
+        }
+      }
 
-      await upload.done()
-      process.stdout.write(" done\n")
-      stats.success++
-    } catch (err: unknown) {
-      process.stdout.write("\n")
-      const msg = err instanceof Error ? err.message.slice(0, 120) : String(err)
-      progress(i, stats.total, "FAIL", pf.key, msg)
-      stats.failed++
+      processed++
+      if (processed % 250 === 0 || processed === stats.total) {
+        info(
+          `  ${processed}/${stats.total} (${stats.success - stats.skipped} uploaded, ${stats.skipped} skipped, ${stats.failed} failed)`
+        )
+      }
     }
   }
+
+  await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()))
 
   summary([
     `Done! ${stats.success - stats.skipped} uploaded, ${stats.skipped} skipped, ${stats.failed} failed`,

@@ -1,9 +1,12 @@
 "use client"
 
+import { useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { getVideoThumbUrl } from "@/lib/file-url"
 import { trpc } from "@/lib/trpc/client"
 import { DebugHud } from "./debug-hud"
 import { EndCard } from "./end-card"
+import { FeedAuth } from "./feed-auth"
 import { FeedHeader } from "./feed-header"
 import { computeLoadState } from "./preload-window"
 import { useScrollDirection } from "./use-scroll-direction"
@@ -93,7 +96,52 @@ export function VideoFeed() {
       }
     )
 
-  const allItems = data?.pages.flatMap((p) => p.items) ?? []
+  // A share link (`/feed?v=<id>`) pins that video to the front, then the rest
+  // of the feed randomizes from there.
+  const searchParams = useSearchParams()
+  const pinnedId = Number(searchParams.get("v")) || null
+  const pinnedVideo = trpc.files.feedVideoById.useQuery(
+    { id: pinnedId ?? 0 },
+    { enabled: pinnedId !== null }
+  )
+  // Hold the feed until the pinned video resolves, so the shared video is the
+  // first thing on screen rather than flashing a random one first.
+  const waitingForPinned = pinnedId !== null && pinnedVideo.isLoading
+
+  const randomized = data?.pages.flatMap((p) => p.items) ?? []
+  const dedupedRandom =
+    pinnedId === null
+      ? randomized
+      : randomized.filter((it) => it.id !== pinnedId)
+  const allItems = pinnedVideo.data
+    ? [pinnedVideo.data, ...dedupedRandom]
+    : dedupedRandom
+
+  // Ambient desktop backdrop: a heavily blurred thumbnail of the active video
+  // so the letterbox area beside the centered column isn't flat black.
+  const activeItem = allItems[activeIndex]
+  const backdropUrl = activeItem?.r2Key
+    ? getVideoThumbUrl(activeItem.r2Key)
+    : null
+
+  // Cross-fade: each new backdrop is pushed as a layer that fades in *over* the
+  // previous one (which stays fully opaque underneath, so it never flashes to
+  // black). Once the top layer finishes fading, the layers below are pruned.
+  const [bgLayers, setBgLayers] = useState<{ id: number; url: string }[]>([])
+  const bgLayerId = useRef(0)
+  useEffect(() => {
+    if (!backdropUrl) {
+      return
+    }
+    setBgLayers((prev) => {
+      if (prev.at(-1)?.url === backdropUrl) {
+        return prev
+      }
+      // Cap depth as a safety net for very fast scrolling; the prune-on-fade
+      // below keeps it at a single layer once scrolling settles.
+      return [...prev, { id: bgLayerId.current++, url: backdropUrl }].slice(-5)
+    })
+  }, [backdropUrl])
 
   // Prefetch the next page several panels before the boundary. If the page
   // lands only after the user swipes onto it, the new panel mounts with no
@@ -347,47 +395,78 @@ export function VideoFeed() {
       className="fixed inset-0 z-50 overflow-y-auto overscroll-y-contain bg-black [scroll-snap-type:y_mandatory]"
       ref={containerRef}
     >
-      <div className="relative mx-auto max-w-md">
-        {debugHud && <DebugHud />}
-        <FeedHeader />
+      {/* Desktop-only ambient backdrop. Hidden on mobile, where the column is
+          full-width and the backdrop would never show. Layers cross-fade so it
+          never dips to black between videos. */}
+      <FeedAuth />
 
-        {allItems.map((item, index) => {
-          const loadState = computeLoadState(
-            index,
-            activeIndex,
-            scrollDirection
-          )
-
-          return (
-            <VideoPanel
-              claimVideo={claimVideo}
-              hasInteracted={hasInteracted}
-              index={index}
-              isActive={index === activeIndex}
-              isNext={index === activeIndex + 1}
-              item={item}
-              key={item.id}
-              loadState={loadState}
-              muted={muted}
-              onAdvance={() => scrollToIndex(index + 1)}
-              onAutoplayMuted={handleAutoplayMuted}
-              onInteract={handleInteract}
-              onMuteToggle={() => setMuted((m) => !m)}
-              registerRef={registerPanel}
+      {bgLayers.length > 0 && (
+        <div className="pointer-events-none fixed inset-0 hidden lg:block">
+          {bgLayers.map((layer, i) => (
+            <div
+              className="absolute inset-0 scale-110 animate-[fadeIn_0.6s_ease] bg-center bg-cover blur-3xl brightness-[0.35] saturate-150"
+              key={layer.id}
+              onAnimationEnd={
+                i === bgLayers.length - 1
+                  ? () => setBgLayers((prev) => prev.slice(-1))
+                  : undefined
+              }
+              style={{ backgroundImage: `url(${layer.url})` }}
             />
-          )
-        })}
+          ))}
+        </div>
+      )}
 
-        {!hasNextPage && allItems.length > 0 && (
-          <EndCard onShuffle={handleShuffle} />
-        )}
+      <FeedHeader />
 
-        {hasNextPage && <div className="h-1" ref={sentinelRef} />}
+      <div className="relative z-10 mx-auto w-full lg:max-w-md">
+        {debugHud && <DebugHud />}
 
-        {isFetchingNextPage && (
-          <div className="flex h-dvh items-center justify-center [scroll-snap-align:start]">
+        {waitingForPinned ? (
+          <div className="flex h-dvh items-center justify-center">
             <div className="size-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
           </div>
+        ) : (
+          <>
+            {allItems.map((item, index) => {
+              const loadState = computeLoadState(
+                index,
+                activeIndex,
+                scrollDirection
+              )
+
+              return (
+                <VideoPanel
+                  claimVideo={claimVideo}
+                  hasInteracted={hasInteracted}
+                  index={index}
+                  isActive={index === activeIndex}
+                  isNext={index === activeIndex + 1}
+                  item={item}
+                  key={item.id}
+                  loadState={loadState}
+                  muted={muted}
+                  onAdvance={() => scrollToIndex(index + 1)}
+                  onAutoplayMuted={handleAutoplayMuted}
+                  onInteract={handleInteract}
+                  onMuteToggle={() => setMuted((m) => !m)}
+                  registerRef={registerPanel}
+                />
+              )
+            })}
+
+            {!hasNextPage && allItems.length > 0 && (
+              <EndCard onShuffle={handleShuffle} />
+            )}
+
+            {hasNextPage && <div className="h-1" ref={sentinelRef} />}
+
+            {isFetchingNextPage && (
+              <div className="flex h-dvh items-center justify-center [scroll-snap-align:start]">
+                <div className="size-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

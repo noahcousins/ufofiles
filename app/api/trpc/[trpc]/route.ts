@@ -1,4 +1,5 @@
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch"
+import { auth } from "@/lib/auth"
 import type { TRPCContext } from "@/lib/trpc/init"
 import { appRouter } from "@/lib/trpc/router"
 
@@ -7,12 +8,23 @@ const handler = (req: Request) =>
     endpoint: "/api/trpc",
     req,
     router: appRouter,
-    createContext: (): TRPCContext => {
+    createContext: async (): Promise<TRPCContext> => {
       const clientIp =
         req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
         req.headers.get("x-real-ip") ??
         undefined
-      return { clientIp }
+
+      const session = await auth.api.getSession({ headers: req.headers })
+      const user = session
+        ? {
+            id: session.user.id,
+            email: session.user.email,
+            isAnonymous: session.user.isAnonymous ?? false,
+            emailVerified: session.user.emailVerified,
+          }
+        : null
+
+      return { clientIp, user }
     },
   })
 

@@ -1,89 +1,47 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { HydrateClient, trpc } from "@/lib/trpc/server"
-import { FileBrowser, FileBrowserSkeleton } from "./files/file-browser"
+import { VideoFeed } from "./feed/_components/video-feed"
 
-const RELEASE_OG_IMAGES: Record<
-  string,
-  { title: string; description: string; image: string }
-> = {
-  "release-2": {
-    title: "Official UFO Files Release 02 | [ufo]files",
+export const metadata: Metadata = {
+  title: "UFO & UAP Video Feed | [ufo]files",
+  description:
+    "Watch declassified government UFO and UAP videos in a continuous feed.",
+  openGraph: {
+    title: "UFO & UAP Video Feed | [ufo]files",
     description:
-      "Official release of declassified UFO and UAP files from May 2026.",
-    image: `${process.env.NEXT_PUBLIC_WORKER_URL}/assets/static/release-02-og-image.jpg`,
+      "Watch declassified government UFO and UAP videos in a continuous feed.",
   },
 }
 
-export async function generateMetadata({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}): Promise<Metadata> {
-  const params = await searchParams
-  const release =
-    typeof params.release === "string" ? params.release : undefined
-  const og = release ? RELEASE_OG_IMAGES[release] : undefined
-
-  if (!og) {
-    return {}
-  }
-
-  return {
-    title: og.title,
-    description: og.description,
-    openGraph: {
-      title: og.title,
-      description: og.description,
-      images: [{ url: og.image }],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: og.title,
-      description: og.description,
-      images: [og.image],
-    },
-  }
-}
-
-export default async function Page({
+export default async function HomePage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  const params = await searchParams
-
-  const search = typeof params.search === "string" ? params.search : undefined
-  const agency = typeof params.agency === "string" ? params.agency : undefined
-  const type =
-    typeof params.type === "string"
-      ? (params.type as "image" | "video" | "pdf" | "other")
-      : undefined
-  const dateRange =
-    typeof params.dateRange === "string"
-      ? (params.dateRange as "2010-now" | "2000s" | "1960-2000" | "pre-1960")
-      : undefined
-  const sortBy =
-    typeof params.sort === "string"
-      ? (params.sort as "newest" | "oldest" | "most-views" | "least-views")
-      : "most-views"
-
-  const release =
-    typeof params.release === "string" ? params.release : undefined
-
-  void trpc.releases.list.prefetch()
-  void trpc.files.list.prefetchInfinite(
-    { search, agency, type, dateRange, pageSize: 48, sortBy },
+  void trpc.files.videoFeed.prefetchInfinite(
+    { pageSize: 5, seed: "default" },
     { initialCursor: 1 }
   )
-  void trpc.files.agencies.prefetch()
-  void trpc.files.typeCounts.prefetch({ search, agency, dateRange })
-  void trpc.files.dateRangeCounts.prefetch()
+
+  // Share links land on a specific video (`/?v=<id>`). Prefetch it so the
+  // pinned video is ready at hydration and the feed doesn't spin first.
+  const params = await searchParams
+  const v = typeof params.v === "string" ? Number(params.v) : Number.NaN
+  if (Number.isInteger(v) && v > 0) {
+    void trpc.files.feedVideoById.prefetch({ id: v })
+  }
 
   return (
     <HydrateClient>
-      <Suspense fallback={<FileBrowserSkeleton />}>
-        <FileBrowser />
+      <Suspense
+        fallback={
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black">
+            <div className="size-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+          </div>
+        }
+      >
+        <VideoFeed />
       </Suspense>
     </HydrateClient>
   )

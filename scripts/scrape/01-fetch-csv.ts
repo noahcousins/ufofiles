@@ -8,10 +8,14 @@ export async function main() {
 
   let csvText: string | null = null
 
+  // The catalog is served from an edge cache that can lag behind a new release
+  // by many minutes; a cache-busting query param forces a fresh copy.
+  const bustedUrl = `${CSV_URL}?_=${Date.now()}`
+
   // strategy 1: direct fetch (fast, no browser overhead)
   try {
-    info(`Trying direct fetch: ${CSV_URL}`)
-    const res = await fetch(CSV_URL)
+    info(`Trying direct fetch: ${bustedUrl}`)
+    const res = await fetch(bustedUrl, { cache: "no-store" })
     if (res.ok) {
       csvText = await res.text()
       info(`Direct fetch succeeded (${csvText.length} bytes)`)
@@ -33,10 +37,13 @@ export async function main() {
         timeout: 60_000,
       })
 
-      csvText = await page.evaluate(async () => {
-        const res = await fetch("/Portals/1/Interactive/2026/UFO/uap-csv.csv")
+      // Fetch from the page context so the request carries the warmed-up
+      // session/cookies that get past Akamai bot protection.
+      const csvPath = new URL(bustedUrl).pathname + new URL(bustedUrl).search
+      csvText = await page.evaluate(async (p) => {
+        const res = await fetch(p, { cache: "no-store" })
         return res.text()
-      })
+      }, csvPath)
     } finally {
       await browser.close()
     }

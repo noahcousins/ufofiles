@@ -13,6 +13,15 @@ export function getFileUrl(r2Key: string): string {
   return `${workerUrl}/${encoded}`
 }
 
+/**
+ * Mark a Worker file URL for download. The browser ignores the `download`
+ * attribute on cross-origin links, so we ask the Worker to send
+ * `Content-Disposition: attachment` via this query param instead.
+ */
+export function withDownloadParam(url: string): string {
+  return `${url}${url.includes("?") ? "&" : "?"}download=1`
+}
+
 function assetParts(r2Key: string): { prefix: string; stem: string } {
   const parts = sourceToAssets(r2Key).split("/")
   const filename = parts.pop() ?? ""

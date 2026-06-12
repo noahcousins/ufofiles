@@ -199,7 +199,13 @@ export default {
     }
 
     const filename = objectKey.split("/").pop() ?? objectKey
-    const disposition = filename.endsWith(".zip") ? "attachment" : "inline"
+    // Force a download (vs. opening inline) when the client asks for it via
+    // `?download`. The `download` attribute on cross-origin <a> tags is ignored
+    // by browsers, so the disposition header is the only reliable way. Zips are
+    // always attachments.
+    const forceDownload =
+      url.searchParams.has("download") || filename.endsWith(".zip")
+    const disposition = forceDownload ? "attachment" : "inline"
     headers.set("Content-Disposition", `${disposition}; filename="${filename}"`)
 
     // Respond with 206 Partial Content for Range requests (not cached)

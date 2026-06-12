@@ -38,3 +38,6 @@ next-env.d.ts
 
 ufo-files/
 .wrangler/
+
+docs/
+scripts/test/
