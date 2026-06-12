@@ -471,14 +471,17 @@ export const filesRouter = router({
       const page = cursor ?? 1
 
       return withCache(
-        cacheKey("files:videoFeed:v3", { page, pageSize, seed }),
+        cacheKey("files:videoFeed:v5", { page, pageSize, seed }),
         SIX_HOURS,
         async () => {
+          // All releases are eligible EXCEPT release-1, whose videos were never
+          // transcoded to HLS — they'd appear in the feed and fail to play.
+          // (Transcode + upload release-1, then drop this exclusion.)
           const feedQuery = sql`
             SELECT ${feedColumns}
             FROM files f
             WHERE f.mime_type ILIKE 'video/%' AND f.r2_key IS NOT NULL
-              AND f.r2_key LIKE 'source/release-2/%'
+              AND f.r2_key NOT LIKE 'source/release-1/%'
             ORDER BY md5(f.id::text || ${seed})
             LIMIT ${pageSize}
             OFFSET ${(page - 1) * pageSize}
@@ -488,7 +491,7 @@ export const filesRouter = router({
             SELECT COUNT(*) AS count
             FROM files f
             WHERE f.mime_type ILIKE 'video/%' AND f.r2_key IS NOT NULL
-              AND f.r2_key LIKE 'source/release-2/%'
+              AND f.r2_key NOT LIKE 'source/release-1/%'
           `
 
           const items = await db.execute(feedQuery)
@@ -511,7 +514,7 @@ export const filesRouter = router({
     .input(z.object({ id: z.number().int().positive() }))
     .query(({ input }) =>
       withCache(
-        cacheKey("files:feedVideoById:v1", { id: input.id }),
+        cacheKey("files:feedVideoById:v2", { id: input.id }),
         SIX_HOURS,
         async () => {
           const rows = await db.execute(sql`
@@ -520,6 +523,7 @@ export const filesRouter = router({
             WHERE f.id = ${input.id}
               AND f.mime_type ILIKE 'video/%'
               AND f.r2_key IS NOT NULL
+              AND f.r2_key NOT LIKE 'source/release-1/%'
             LIMIT 1
           `)
           const row = (rows as FeedRow[])[0]
