@@ -49,8 +49,8 @@ interface HeaderProps {
   children?: React.ReactNode
   mobileSearchOpen?: boolean
   newReleaseName?: string | null
-  onNewReleaseClick?: () => void
   onMobileSearchToggle?: () => void
+  onNewReleaseClick?: () => void
 }
 
 export function Header({
@@ -75,7 +75,7 @@ export function Header({
               onClick={onNewReleaseClick}
             >
               <Button size="xs" variant="default">
-                Release 02 out now
+                Release 03 out now
                 <ArrowRightIcon className="size-4" />
               </Button>
             </Link>

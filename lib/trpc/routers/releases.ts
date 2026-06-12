@@ -1,4 +1,4 @@
-import { asc, count, eq, sum } from "drizzle-orm"
+import { asc, count, desc, eq, sum } from "drizzle-orm"
 import { z } from "zod/v4"
 import { cacheKey, withCache } from "@/lib/cache"
 import { db } from "@/lib/db"
@@ -10,7 +10,7 @@ const ONE_DAY = 24 * 60 * 60
 
 export const releasesRouter = router({
   list: rateLimitedProcedure("query").query(async () =>
-    withCache("releases:list", ONE_DAY, async () => {
+    withCache("releases:list:v2", ONE_DAY, async () => {
       const result = await db
         .select({
           id: releases.id,
@@ -25,7 +25,7 @@ export const releasesRouter = router({
         .from(releases)
         .leftJoin(files, eq(releases.id, files.releaseId))
         .groupBy(releases.id)
-        .orderBy(asc(releases.name))
+        .orderBy(desc(releases.releaseDate))
 
       return result
     })
@@ -55,9 +55,9 @@ export const releasesRouter = router({
     ),
 
   downloads: rateLimitedProcedure("query").query(async () =>
-    withCache("releases:downloads", ONE_DAY, async () => {
+    withCache("releases:downloads:v2", ONE_DAY, async () => {
       const result = await db.query.releases.findMany({
-        orderBy: asc(releases.name),
+        orderBy: desc(releases.releaseDate),
         with: {
           releaseDownloads: {
             orderBy: asc(releaseDownloads.sortOrder),
