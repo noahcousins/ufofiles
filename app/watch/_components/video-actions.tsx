@@ -12,86 +12,42 @@ import {
 } from "@phosphor-icons/react"
 import posthog from "posthog-js"
 import { useCallback, useState } from "react"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import { ensureGuestSession, useSession } from "@/lib/auth-client"
+import { useSession } from "@/lib/auth/session-provider"
+import { useBookmark } from "@/lib/bookmarks/use-bookmark"
 import { getStreamingVideoUrl, withDownloadParam } from "@/lib/file-url"
-import { trpc } from "@/lib/trpc/client"
 import { cn } from "@/lib/utils"
 import type { FeedItem } from "./video-panel"
 
 interface VideoActionsProps {
   item: FeedItem
+  onStartClip: () => void
 }
 
-export function VideoActions({ item }: VideoActionsProps) {
+export function VideoActions({ item, onStartClip }: VideoActionsProps) {
   const [copied, setCopied] = useState(false)
-  const [clipTipOpen, setClipTipOpen] = useState(false)
   const { data: session } = useSession()
-  const utils = trpc.useUtils()
-
-  const bookmarkedIds = trpc.bookmarks.fileIds.useQuery(undefined, {
-    enabled: Boolean(session),
-  })
-  const isBookmarked = bookmarkedIds.data?.includes(item.id) ?? false
-
-  // Aggregate count across all users — public, cached. Only surfaced once a
-  // video has real traction (see threshold below).
-  const bookmarkCounts = trpc.bookmarks.counts.useQuery(
-    { fileIds: [item.id] },
-    { staleTime: 60 * 1000 }
-  )
-  const bookmarkCount = bookmarkCounts.data?.[item.id] ?? 0
-
-  // Optimistically nudge the cached count so the number reacts instantly to the
-  // user's own toggle, without waiting on the (server-cached) counts query.
-  const bumpCount = (delta: number) => {
-    utils.bookmarks.counts.setData({ fileIds: [item.id] }, (old) => ({
-      ...old,
-      [item.id]: Math.max(0, (old?.[item.id] ?? 0) + delta),
-    }))
-  }
-
-  const createBookmark = trpc.bookmarks.create.useMutation({
-    onSuccess: () => {
-      utils.bookmarks.fileIds.invalidate()
-      bumpCount(1)
-    },
-  })
-  const removeBookmark = trpc.bookmarks.remove.useMutation({
-    onSuccess: () => {
-      utils.bookmarks.fileIds.invalidate()
-      bumpCount(-1)
-    },
-  })
-  const mutating = createBookmark.isPending || removeBookmark.isPending
+  const {
+    isBookmarked,
+    bookmarkCount,
+    toggle: toggleBookmark,
+    mutating,
+  } = useBookmark(item.id)
 
   const handleBookmark = useCallback(
-    async (e: React.MouseEvent) => {
+    (e: React.MouseEvent) => {
       e.stopPropagation()
-      if (mutating) {
-        return
-      }
-      // First mark on a fresh visitor silently mints a Guest (ADR-0003) — no
-      // sign-up wall mid-scroll.
-      await ensureGuestSession()
-      if (isBookmarked) {
-        removeBookmark.mutate({ fileId: item.id })
-      } else {
-        createBookmark.mutate({ fileId: item.id })
+      // Count an add only — toggle() no-ops into the auth modal when signed out.
+      if (session && !(isBookmarked || mutating)) {
         posthog.capture("feed_video_bookmarked", { file_id: item.id })
       }
+      toggleBookmark()
     },
-    [isBookmarked, item.id, mutating, createBookmark, removeBookmark]
+    [session, isBookmarked, mutating, item.id, toggleBookmark]
   )
 
   const copyLink = useCallback(() => {
-    // Share into the feed (now at root), pinned to this video (reads `?v`).
-    const url = new URL(`/?v=${item.id}`, window.location.origin)
+    // Share into the feed (at /watch), pinned to this video (reads `?v`).
+    const url = new URL(`/watch?v=${item.id}`, window.location.origin)
     navigator.clipboard.writeText(url.toString()).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
@@ -99,13 +55,16 @@ export function VideoActions({ item }: VideoActionsProps) {
     })
   }, [item.id])
 
-  // Clip isn't built yet — tapping just flashes a "coming soon" tooltip (so it
-  // works on touch too, where hover never fires).
-  const handleClipTease = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    setClipTipOpen(true)
-    setTimeout(() => setClipTipOpen(false), 1500)
-  }, [])
+  // Enter the clip editor (takeover mode owned by video-panel). Gating to a
+  // Member happens at commit, not here — taste-then-convert (ADR-0003).
+  const handleClip = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      onStartClip()
+      posthog.capture("feed_clip_started", { file_id: item.id })
+    },
+    [onStartClip, item.id]
+  )
 
   const handleDownload = useCallback(
     (e: React.MouseEvent) => {
@@ -147,20 +106,11 @@ export function VideoActions({ item }: VideoActionsProps) {
         onClick={handleBookmark}
       />
 
-      <TooltipProvider delay={0}>
-        <Tooltip onOpenChange={setClipTipOpen} open={clipTipOpen}>
-          <TooltipTrigger
-            onClick={handleClipTease}
-            render={
-              <ActionButton
-                icon={<ScissorsIcon className="size-5" weight="fill" />}
-                label="Clip"
-              />
-            }
-          />
-          <TooltipContent side="left">Coming soon</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <ActionButton
+        icon={<ScissorsIcon className="size-5" weight="fill" />}
+        label="Clip"
+        onClick={handleClip}
+      />
 
       <Popover.Root>
         <Popover.Trigger
@@ -229,7 +179,7 @@ export function VideoActions({ item }: VideoActionsProps) {
                 render={
                   <a
                     className="flex w-full cursor-default select-none items-center gap-2 rounded-none py-2 pr-8 pl-2 text-xs outline-hidden transition-colors hover:bg-accent hover:text-accent-foreground"
-                    href={`/files?fileId=${item.id}`}
+                    href={`/?fileId=${item.id}`}
                     rel="noopener noreferrer"
                     target="_blank"
                   >
@@ -266,9 +216,11 @@ function ActionButton({
       type="button"
       {...rest}
     >
+      {/* No transition on the active state: the background/color must flip in
+          sync with the icon weight and label text, which swap instantly. */}
       <div
         className={cn(
-          "flex size-10 items-center justify-center rounded-full backdrop-blur-sm transition-colors",
+          "flex size-10 items-center justify-center rounded-full backdrop-blur-sm",
           active ? "bg-white text-black" : "bg-black/40"
         )}
       >
