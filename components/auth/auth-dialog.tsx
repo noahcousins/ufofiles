@@ -5,13 +5,17 @@ import { useEffect, useState } from "react"
 import { cn } from "@/lib/utils"
 import { AuthHeading, AuthHeroImage } from "./auth-hero"
 import { ModeSwitch } from "./auth-parts"
-import type { AuthMode, AuthStep } from "./auth-types"
+import {
+  type AuthMode,
+  type AuthStep,
+  DEFAULT_AUTH_REDIRECT,
+} from "./auth-types"
 import { CredentialsForm } from "./credentials-form"
 import { ForgotPasswordForm } from "./forgot-password-form"
 import { MagicLinkWatcher } from "./magic-link-watcher"
 
 interface AuthDialogProps {
-  /** Where to land after sign-in. Defaults to the Library. */
+  /** Where to land after sign-in. Defaults to the home page. */
   callbackURL?: string
   /** Which tab opens first. The `/login` route passes "signin". */
   initialMode?: AuthMode
@@ -29,7 +33,7 @@ interface AuthDialogProps {
 export function AuthDialog({
   open,
   onOpenChange,
-  callbackURL = "/library",
+  callbackURL = DEFAULT_AUTH_REDIRECT,
   initialMode = "signup",
 }: AuthDialogProps) {
   const [mode, setMode] = useState<AuthMode>(initialMode)

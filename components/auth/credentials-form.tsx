@@ -11,9 +11,10 @@ import { Spinner } from "@/components/ui/spinner"
 import { Turnstile } from "@/components/ui/turnstile"
 import { signIn, signUp } from "@/lib/auth-client"
 import { suggestEmailFix } from "@/lib/email-typo"
+import { navigateInternal } from "@/lib/safe-path"
 import { trpc } from "@/lib/trpc/client"
 import { Divider } from "./auth-parts"
-import type { AuthMode } from "./auth-types"
+import { type AuthMode, DEFAULT_AUTH_REDIRECT } from "./auth-types"
 import { JUST_AUTHED_KEY } from "./email-verification-provider"
 
 const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
@@ -129,7 +130,7 @@ export function CredentialsForm({
     })
     posthog.identify(email.trim(), { email: email.trim() })
     sessionStorage.setItem(JUST_AUTHED_KEY, "1")
-    window.location.assign(callbackURL)
+    navigateInternal(callbackURL, DEFAULT_AUTH_REDIRECT)
   }
 
   const passwordLabel = mode === "signup" ? "Create account" : "Log in"
