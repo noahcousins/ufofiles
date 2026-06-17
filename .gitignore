@@ -45,3 +45,5 @@ scripts/test/
 .trigger/
 
 files_src/
+
+.deepsec/
