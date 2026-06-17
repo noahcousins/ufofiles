@@ -3,8 +3,8 @@ import { publicProcedure } from "./init"
 import { checkRateLimit, type RateLimitAction } from "./rateLimit"
 
 /**
- * Base middleware: require a signed-in identity (Guest or Member) and narrow
- * `ctx.user` to non-null for downstream resolvers.
+ * Base middleware: require a signed-in account and narrow `ctx.user` to
+ * non-null for downstream resolvers.
  */
 const authed = publicProcedure.use(({ ctx, next }) => {
   if (!ctx.user) {
@@ -17,8 +17,8 @@ const authed = publicProcedure.use(({ ctx, next }) => {
 })
 
 /**
- * Any signed-in User (Guest included). Rate limits are **user-keyed** rather
- * than IP-keyed (ADR-0003) so a shared IP doesn't throttle distinct accounts.
+ * Any signed-in account (the auth-modal gate). Rate limits are **user-keyed**
+ * so a shared IP doesn't throttle distinct accounts.
  */
 export function protectedProcedure(
   action: RateLimitAction = "mutation",
@@ -26,30 +26,13 @@ export function protectedProcedure(
 ) {
   return authed.use(async ({ ctx, next, getRawInput }) => {
     const resourceKey = keyFn ? keyFn(await getRawInput()) : undefined
-
-    // Per-user cap.
     await checkRateLimit(action, `user:${ctx.user.id}`, resourceKey)
-
-    // Guest-only IP backstop: Guests are free to mint (one per anonymous
-    // sign-in), so a per-user limit alone is trivially bypassed by rotating
-    // Guests. Keying anonymous traffic by IP as well caps the real cost
-    // regardless of how many Guest identities a single client spins up.
-    // Members are not IP-limited here — they're hard to mint and we don't want
-    // to throttle several real Members behind one NAT.
-    if (ctx.user.isAnonymous) {
-      await checkRateLimit(
-        action,
-        `ip:${ctx.clientIp ?? "unknown"}`,
-        resourceKey
-      )
-    }
-
     return next()
   })
 }
 
 /**
- * A verified Member. Guests and unverified accounts are rejected — this is the
+ * A verified Member — unverified accounts are rejected. This is the Clip /
  * Export gate (ADR-0003). Magic-link and Google sign-ins arrive verified.
  */
 export function memberProcedure(
@@ -57,10 +40,10 @@ export function memberProcedure(
   keyFn?: (rawInput: unknown) => string
 ) {
   return protectedProcedure(action, keyFn).use(({ ctx, next }) => {
-    if (ctx.user.isAnonymous || !ctx.user.emailVerified) {
+    if (!ctx.user.emailVerified) {
       throw new TRPCError({
         code: "FORBIDDEN",
-        message: "Upgrade to a member to continue",
+        message: "Verify your email to continue",
       })
     }
     return next()
