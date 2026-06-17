@@ -48,32 +48,36 @@ export const bookmarksRouter = router({
 
   remove: memberProcedure("mutation")
     .input(z.object({ fileId: z.number().int().positive() }))
-    .mutation(async ({ input, ctx }) => {
-      const deleted = await db
-        .delete(bookmarks)
-        .where(
-          and(
-            eq(bookmarks.userId, ctx.user.id),
-            eq(bookmarks.fileId, input.fileId)
-          )
-        )
-        .returning({ id: bookmarks.id })
-
-      // Detach the deleted Bookmark from any Collections (no FK on the
-      // polymorphic membership rows).
-      for (const { id } of deleted) {
-        await db
-          .delete(collectionMarks)
+    .mutation(async ({ input, ctx }) =>
+      // Atomic: delete the Bookmark and detach it from any Collections in one
+      // transaction, so a failure between the two can't leave orphan
+      // collection_marks (no FK on the polymorphic membership rows).
+      db.transaction(async (tx) => {
+        const deleted = await tx
+          .delete(bookmarks)
           .where(
             and(
-              eq(collectionMarks.markType, "bookmark"),
-              eq(collectionMarks.markId, id)
+              eq(bookmarks.userId, ctx.user.id),
+              eq(bookmarks.fileId, input.fileId)
             )
           )
-      }
+          .returning({ id: bookmarks.id })
 
-      return { removed: deleted.length > 0 }
-    }),
+        if (deleted.length > 0) {
+          await tx.delete(collectionMarks).where(
+            and(
+              eq(collectionMarks.markType, "bookmark"),
+              inArray(
+                collectionMarks.markId,
+                deleted.map((d) => d.id)
+              )
+            )
+          )
+        }
+
+        return { removed: deleted.length > 0 }
+      })
+    ),
 
   // Which of the user's files are bookmarked — drives the feed's toggle state.
   fileIds: protectedProcedure("query")

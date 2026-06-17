@@ -129,7 +129,17 @@ export default {
     }
 
     const url = new URL(request.url)
-    const rawPath = decodeURIComponent(url.pathname.slice(1)) // strip leading /
+    // Guard against malformed `%` sequences — decodeURIComponent throws a
+    // URIError on those, which would otherwise surface as an unhandled 500.
+    let rawPath: string
+    try {
+      rawPath = decodeURIComponent(url.pathname.slice(1)) // strip leading /
+    } catch {
+      return new Response("Bad Request", {
+        status: 400,
+        headers: CORS_HEADERS,
+      })
+    }
 
     if (!rawPath) {
       return new Response("Not Found", { status: 404 })
