@@ -50,7 +50,9 @@ export const RELEASE_DATES: Record<string, string> = {
 // DVIDS API
 // ---------------------------------------------------------------------------
 export const DVIDS_API_BASE = "https://api.dvidshub.net/asset"
-export const DVIDS_API_KEY = process.env.DVIDS_API_KEY ?? "key-68bb60d16b35e"
+// Must come from the environment — never hardcode the key (it would live in git
+// history). The DVIDS download step validates it's present before use.
+export const DVIDS_API_KEY = process.env.DVIDS_API_KEY ?? ""
 
 // ---------------------------------------------------------------------------
 // Batch / throttle settings
