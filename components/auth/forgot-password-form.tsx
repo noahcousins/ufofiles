@@ -5,8 +5,11 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
+import { Turnstile } from "@/components/ui/turnstile"
 import { authClient } from "@/lib/auth-client"
 import { suggestEmailFix } from "@/lib/email-typo"
+
+const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY
 
 /**
  * Dedicated password-reset request form (its own step in the auth dialog).
@@ -26,7 +29,15 @@ export function ForgotPasswordForm({
 }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Turnstile token + a key to force a fresh widget (tokens are single-use).
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
+  const [captchaKey, setCaptchaKey] = useState(0)
   const emailSuggestion = suggestEmailFix(email)
+
+  const resetCaptcha = () => {
+    setCaptchaToken(null)
+    setCaptchaKey((k) => k + 1)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,11 +46,17 @@ export function ForgotPasswordForm({
     }
     setError(null)
     setPending(true)
+    // /request-password-reset is captcha-gated server-side; attach the token.
+    const fetchOptions = captchaToken
+      ? { headers: { "x-captcha-response": captchaToken } }
+      : undefined
     const { error: err } = await authClient.requestPasswordReset({
       email: email.trim(),
       redirectTo: "/reset-password",
+      fetchOptions,
     })
     setPending(false)
+    resetCaptcha()
     if (err) {
       setError(err.message ?? "Couldn't send the reset link. Try again.")
       return
@@ -70,7 +87,19 @@ export function ForgotPasswordForm({
             Did you mean {emailSuggestion}?
           </button>
         )}
-        <Button className="w-full" disabled={pending} size="lg" type="submit">
+        {turnstileSiteKey && (
+          <Turnstile
+            key={captchaKey}
+            onToken={setCaptchaToken}
+            siteKey={turnstileSiteKey}
+          />
+        )}
+        <Button
+          className="w-full"
+          disabled={pending || (Boolean(turnstileSiteKey) && !captchaToken)}
+          size="lg"
+          type="submit"
+        >
           {pending ? <Spinner className="text-current" /> : "Send reset link"}
         </Button>
         {error && <p className="text-destructive text-xs">{error}</p>}
