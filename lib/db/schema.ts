@@ -190,11 +190,9 @@ export const fileTagsRelations = relations(fileTags, ({ one }) => ({
 }))
 
 // ── Identity (better-auth) ────────────────────────────────────────────────
-// A `user` row with `isAnonymous = true` is a Guest (ADR-0003): a credential-
-// less identity created silently on a visitor's first mark. Upgrading links a
-// real account (magic-link or Google) and merges the Guest's marks in. Tables
-// below mirror what the better-auth Drizzle adapter expects — do not rename
-// columns without updating the adapter config in `lib/auth.ts`.
+// Every `user` is a credentialed account (email/password, magic-link, or
+// Google). Tables below mirror what the better-auth Drizzle adapter expects —
+// do not rename columns without updating the adapter config in `lib/auth.ts`.
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -202,8 +200,9 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
-  // Set by the anonymous plugin. A Guest has this true; an upgraded Member
-  // has it false (or null for accounts that were never anonymous).
+  // LEGACY: from the removed anonymous plugin (ADR-0003, revised). No longer
+  // written; kept so an existing DB column isn't dropped. Always null for new
+  // accounts. Safe to drop in a future migration.
   isAnonymous: boolean("is_anonymous"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -313,6 +312,42 @@ export const clips = pgTable(
   ]
 )
 
+// The shared, content-keyed render cache (ADR-0002). A row is the rendered
+// artifact for one exact time range on one File, NOT tied to a User — identical
+// bounds requested by any number of Users collapse to a single render. Clips
+// join here logically on (fileId, startSeconds, endSeconds); there is no FK,
+// matching the polymorphic style elsewhere. Status drives the UI lifecycle.
+export const clipRenders = pgTable(
+  "clip_renders",
+  {
+    id: serial("id").primaryKey(),
+    fileId: integer("file_id")
+      .notNull()
+      .references(() => files.id),
+    startSeconds: integer("start_seconds").notNull(),
+    endSeconds: integer("end_seconds").notNull(),
+    // "pending" | "processing" | "ready" | "failed"
+    status: text("status").notNull().default("pending"),
+    // R2 object key of the rendered MP4 (in the private clips bucket); null
+    // until status is "ready".
+    r2Key: text("r2_key"),
+    // trigger.dev run id, for observability / cancellation.
+    triggerRunId: text("trigger_run_id"),
+    error: text("error"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    // The content key. Insert with onConflictDoNothing on this index to get
+    // cross-user dedupe AND single-enqueue for free.
+    uniqueIndex("clip_renders_content_idx").on(
+      t.fileId,
+      t.startSeconds,
+      t.endSeconds
+    ),
+  ]
+)
+
 export const collections = pgTable(
   "collections",
   {
@@ -346,6 +381,19 @@ export const collectionMarks = pgTable(
   ]
 )
 
+// Email-marketing preference for signed-in users — separate from cookie/
+// analytics consent (which lives in the browser via c15t). Opt-OUT model: users
+// are subscribed by default, so a row only exists once someone changes the
+// setting; `marketing_consent = false` is an explicit unsubscribe. The send-
+// list is every user without a `false` row. Set from account settings.
+export const userMarketingPreferences = pgTable("user_marketing_preferences", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  marketingConsent: boolean("marketing_consent").notNull().default(false),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+})
+
 export const userRelations = relations(user, ({ many }) => ({
   bookmarks: many(bookmarks),
   clips: many(clips),
@@ -360,6 +408,10 @@ export const bookmarksRelations = relations(bookmarks, ({ one }) => ({
 export const clipsRelations = relations(clips, ({ one }) => ({
   user: one(user, { fields: [clips.userId], references: [user.id] }),
   file: one(files, { fields: [clips.fileId], references: [files.id] }),
+}))
+
+export const clipRendersRelations = relations(clipRenders, ({ one }) => ({
+  file: one(files, { fields: [clipRenders.fileId], references: [files.id] }),
 }))
 
 export const collectionsRelations = relations(collections, ({ one, many }) => ({
