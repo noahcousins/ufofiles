@@ -137,7 +137,7 @@ const feedColumns = sql`
   ) AS moments
 `
 
-interface FeedRow {
+type FeedRow = {
   agency: string | null
   description: string | null
   file_size: number | string | null
@@ -463,13 +463,15 @@ export const filesRouter = router({
               AND f.r2_key NOT LIKE 'source/release-1/%'
           `
 
-          const items = await db.execute(feedQuery)
-          const [totalRow] = await db.execute(countQuery)
-          const total = Number((totalRow as any).count)
+          const items = await db.execute<FeedRow>(feedQuery)
+          const [totalRow] = await db.execute<{ count: number | string }>(
+            countQuery
+          )
+          const total = Number(totalRow?.count ?? 0)
           const totalPages = Math.ceil(total / pageSize)
 
           return {
-            items: (items as FeedRow[]).map(mapFeedRow),
+            items: items.map(mapFeedRow),
             total,
             nextCursor: page < totalPages ? page + 1 : undefined,
           }
@@ -486,7 +488,7 @@ export const filesRouter = router({
         cacheKey("files:feedVideoById:v2", { id: input.id }),
         SIX_HOURS,
         async () => {
-          const rows = await db.execute(sql`
+          const rows = await db.execute<FeedRow>(sql`
             SELECT ${feedColumns}
             FROM files f
             WHERE f.id = ${input.id}
@@ -495,7 +497,7 @@ export const filesRouter = router({
               AND f.r2_key NOT LIKE 'source/release-1/%'
             LIMIT 1
           `)
-          const row = (rows as FeedRow[])[0]
+          const row = rows[0]
           return row ? mapFeedRow(row) : null
         }
       )
