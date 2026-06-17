@@ -1,10 +1,10 @@
 import { asc, count, desc, eq, gt, isNotNull, lt } from "drizzle-orm"
 import type { Metadata } from "next"
+import { FileViewer } from "@/components/files/viewers/file-viewer"
 import { db } from "@/lib/db"
 import { files } from "@/lib/db/schema"
 import { getFirstPdfPageUrl } from "@/lib/file-url"
 import { getFile } from "@/lib/r2"
-import { FileViewer } from "./file-viewer"
 
 interface Props {
   params: Promise<{ path: string[] }>

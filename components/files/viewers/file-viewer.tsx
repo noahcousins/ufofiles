@@ -145,7 +145,7 @@ export function FileViewer({
         )}
       >
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <Link href="/files">
+          <Link href="/">
             <Button className="sm:hidden" size="sm" variant="outline">
               <ArrowLeftIcon className="size-3.5" />
             </Button>

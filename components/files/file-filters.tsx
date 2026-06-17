@@ -10,7 +10,7 @@ import {
   Tag as TagIcon,
   X,
 } from "@phosphor-icons/react/dist/ssr"
-import { AnimatePresence, animate, LayoutGroup, motion } from "motion/react"
+import { AnimatePresence, animate, motion } from "motion/react"
 import Image from "next/image"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +23,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer"
+import { FilterPills } from "@/components/ui/filter-pills"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -788,60 +789,31 @@ export function FileFilters({
                 return 0
               })
               const allCount = typeCounts.reduce((sum, tc) => sum + tc.count, 0)
+              const options = [
+                { value: "all", label: "All", count: allCount },
+                ...sorted.map((tc) => ({
+                  value: tc.type,
+                  label: TYPE_LABELS[tc.type] ?? tc.type,
+                  count: tc.count,
+                  disabled: tc.count === 0,
+                })),
+              ]
 
               return (
-                <LayoutGroup>
-                  <motion.div layout layoutId="filter-all">
-                    <Button
-                      className={
-                        type ? "" : "border-ring bg-ring/10 text-foreground"
-                      }
-                      onClick={() => onTypeChange(null)}
-                      size="sm"
-                      variant={type ? "ghost" : "outline"}
-                    >
-                      All (
-                      <NumberFlow
-                        className={typeCountsLoading ? "animate-pulse" : ""}
-                        value={allCount}
-                      />
-                      )
-                    </Button>
-                  </motion.div>
-                  {sorted.map((tc) => (
-                    <motion.div
-                      key={tc.type}
-                      layout
-                      layoutId={`filter-${tc.type}`}
-                      transition={{
-                        type: "spring",
-                        stiffness: 500,
-                        damping: 35,
-                      }}
-                    >
-                      <Button
-                        className={
-                          type === tc.type
-                            ? "border-ring bg-ring/10 text-foreground"
-                            : ""
-                        }
-                        disabled={tc.count === 0}
-                        onClick={() =>
-                          onTypeChange(type === tc.type ? null : tc.type)
-                        }
-                        size="sm"
-                        variant={type === tc.type ? "outline" : "ghost"}
-                      >
-                        {TYPE_LABELS[tc.type] ?? tc.type} (
-                        <NumberFlow
-                          className={typeCountsLoading ? "animate-pulse" : ""}
-                          value={tc.count}
-                        />
-                        )
-                      </Button>
-                    </motion.div>
-                  ))}
-                </LayoutGroup>
+                <FilterPills
+                  idPrefix="filter"
+                  loading={typeCountsLoading}
+                  onChange={(v) => {
+                    if (v === "all") {
+                      onTypeChange(null)
+                      return
+                    }
+                    // Re-clicking the active type clears it (back to All).
+                    onTypeChange(type === v ? null : v)
+                  }}
+                  options={options}
+                  value={type || "all"}
+                />
               )
             })()}
           </div>
