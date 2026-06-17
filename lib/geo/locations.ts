@@ -141,5 +141,7 @@ export const LOCATION_COORDS: Record<string, [number, number]> = {
  * Returns [latitude, longitude] or null if not found.
  */
 export function geocodeLocation(name: string): [number, number] | null {
-  return LOCATION_COORDS[name] ?? null
+  // `hasOwn` guard so inherited Object.prototype members ("toString",
+  // "constructor", …) don't resolve to a function instead of null.
+  return Object.hasOwn(LOCATION_COORDS, name) ? LOCATION_COORDS[name] : null
 }

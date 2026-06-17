@@ -5,10 +5,15 @@ export interface ParsedMoment {
   startSeconds: number
 }
 
-const TIMESTAMP_LINE = /^(\d{1,2}:\d{2})(?:-(\d{1,2}:\d{2}))?:\s*(.+)/
+// Accepts MM:SS and HH:MM:SS (optional hours group).
+const TIMESTAMP_LINE =
+  /^(\d{1,2}:\d{2}(?::\d{2})?)(?:-(\d{1,2}:\d{2}(?::\d{2})?))?:\s*(.+)/
 
 function parseTimestamp(ts: string): number {
   const parts = ts.split(":").map(Number)
+  if (parts.length === 3) {
+    return parts[0] * 3600 + parts[1] * 60 + parts[2]
+  }
   return parts[0] * 60 + parts[1]
 }
 
