@@ -1,9 +1,9 @@
 "use client"
 
 import { createContext, useCallback, useContext, useState } from "react"
-import { currentRelativePath } from "@/lib/safe-path"
+import { currentRelativePath, safeInternalPath } from "@/lib/safe-path"
 import { AuthDialog } from "./auth-dialog"
-import type { AuthMode } from "./auth-types"
+import { type AuthMode, DEFAULT_AUTH_REDIRECT } from "./auth-types"
 
 /**
  * Open the auth modal from anywhere in the app. `callbackURL` defaults to the
@@ -28,7 +28,9 @@ export function AuthDialogProvider({
 
   const openAuth = useCallback<OpenAuth>((nextMode, dest) => {
     setMode(nextMode)
-    setCallbackURL(dest ?? currentRelativePath())
+    setCallbackURL(
+      safeInternalPath(dest ?? currentRelativePath(), DEFAULT_AUTH_REDIRECT)
+    )
     setOpen(true)
   }, [])
 

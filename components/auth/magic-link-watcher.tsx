@@ -2,6 +2,8 @@
 
 import { useEffect } from "react"
 import { authClient } from "@/lib/auth-client"
+import { navigateInternal } from "@/lib/safe-path"
+import { DEFAULT_AUTH_REDIRECT } from "./auth-types"
 
 /**
  * Renders nothing — drives the magic-link "this tab updates itself" behaviour.
@@ -17,7 +19,7 @@ export function MagicLinkWatcher({ callbackURL }: { callbackURL: string }) {
       const { data } = await authClient.getSession()
       if (!cancelled && data?.user) {
         cancelled = true
-        window.location.assign(callbackURL)
+        navigateInternal(callbackURL, DEFAULT_AUTH_REDIRECT)
       }
     }
     const onVisible = () => {
