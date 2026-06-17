@@ -19,12 +19,11 @@ const handler = (req: Request) =>
         ? {
             id: session.user.id,
             email: session.user.email,
-            isAnonymous: session.user.isAnonymous ?? false,
             emailVerified: session.user.emailVerified,
           }
         : null
 
-      return { clientIp, user }
+      return { clientIp, headers: req.headers, user }
     },
   })
 

@@ -1,33 +1,21 @@
 "use client"
 
-import { anonymousClient, magicLinkClient } from "better-auth/client/plugins"
+import { emailOTPClient, magicLinkClient } from "better-auth/client/plugins"
 import { createAuthClient } from "better-auth/react"
 
 export const authClient = createAuthClient({
-  plugins: [anonymousClient(), magicLinkClient()],
+  plugins: [magicLinkClient(), emailOTPClient()],
 })
 
-export const { useSession, signIn, signUp, signOut, getSession } = authClient
+// Raw better-auth primitives still used directly. Session *reads* go through the
+// Zustand store (see `lib/auth/session-provider` — `useSession`, `useAuthActions`)
+// rather than better-auth's reactive `useSession` hook, so the session can be
+// preloaded server-side and passed down without flashing.
+export const { signIn, signUp } = authClient
 
-/**
- * Ensure a session exists before a mark (ADR-0003). The first mark silently
- * creates a Guest; subsequent marks reuse it. Returns the active user id.
- */
-export async function ensureGuestSession(): Promise<string | null> {
-  const { data } = await authClient.getSession()
-  if (data?.user) {
-    return data.user.id
-  }
-  const result = await authClient.signIn.anonymous()
-  return result.data?.user?.id ?? null
-}
-
-/** A Member is a non-anonymous, verified User — the only kind that can Export. */
+/** A Member is a verified User — the only kind that can Clip / Export. */
 export function isMember(
-  user:
-    | { isAnonymous?: boolean | null; emailVerified?: boolean }
-    | null
-    | undefined
+  user: { emailVerified?: boolean } | null | undefined
 ): boolean {
-  return Boolean(user && !user.isAnonymous && user.emailVerified)
+  return Boolean(user?.emailVerified)
 }
