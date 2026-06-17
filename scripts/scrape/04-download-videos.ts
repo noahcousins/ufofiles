@@ -59,6 +59,12 @@ function resolveVideos(records: UfoRecord[]): {
 export async function main() {
   info("Step 4: Downloading videos via DVIDS API\n")
 
+  if (!DVIDS_API_KEY) {
+    throw new Error(
+      "DVIDS_API_KEY is not set — add it to .env.local (see .env.example)."
+    )
+  }
+
   const records: UfoRecord[] = JSON.parse(readFileSync(RECORDS_PATH, "utf-8"))
   const { unique, nameFor } = resolveVideos(records)
 

@@ -10,11 +10,16 @@ export const metadata: Metadata = {
   description: "New features, improvements, and fixes for [ufo]files.",
 }
 
+// Changelog dates are bare calendar dates (YYYY-MM-DD), which parse as midnight
+// UTC. Format in UTC too, so the displayed day matches what's written in the
+// frontmatter regardless of the runtime's timezone (otherwise EST rolls it back
+// a day).
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
     day: "numeric",
+    timeZone: "UTC",
   })
 }
 
@@ -22,6 +27,7 @@ function formatMonthDay(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
+    timeZone: "UTC",
   })
 }
 

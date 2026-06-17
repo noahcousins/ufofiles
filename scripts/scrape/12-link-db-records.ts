@@ -45,7 +45,9 @@ function findLocalFile(
 
   // check by filename from documentUrl (files may have been saved with their original name)
   if (r.documentUrl) {
-    const urlFilename = decodeURIComponent(r.documentUrl.split("?")[0].split("/").pop() ?? "")
+    const urlFilename = decodeURIComponent(
+      r.documentUrl.split("?")[0].split("/").pop() ?? ""
+    )
     if (urlFilename && fileSizes.has(urlFilename)) {
       return urlFilename
     }

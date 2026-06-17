@@ -8,6 +8,7 @@ import {
   Image,
   VideoCamera,
 } from "@phosphor-icons/react/dist/ssr"
+import posthog from "posthog-js"
 import { Header } from "@/components/layout/header"
 import { Badge } from "@/components/ui/badge"
 import { getFileUrl } from "@/lib/file-url"
@@ -110,6 +111,14 @@ export function ReleasesPage() {
                           className="group flex items-center gap-4 p-4 transition-colors hover:bg-muted/30"
                           download
                           href={getFileUrl(master.r2Key)}
+                          onClick={() =>
+                            posthog.capture("release_archive_downloaded", {
+                              release_id: release.id,
+                              release_title: release.title,
+                              slug: master.slug,
+                              label: master.label,
+                            })
+                          }
                         >
                           <div
                             className={`flex size-10 shrink-0 items-center justify-center border ${SLUG_COLORS.master}`}
@@ -143,6 +152,17 @@ export function ReleasesPage() {
                                 download
                                 href={getFileUrl(dl.r2Key)}
                                 key={dl.id}
+                                onClick={() =>
+                                  posthog.capture(
+                                    "release_archive_downloaded",
+                                    {
+                                      release_id: release.id,
+                                      release_title: release.title,
+                                      slug: dl.slug,
+                                      label: dl.label,
+                                    }
+                                  )
+                                }
                               >
                                 <div
                                   className={`flex size-8 shrink-0 items-center justify-center border ${colorClass}`}

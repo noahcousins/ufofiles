@@ -10,7 +10,13 @@ interface RateLimitConfig {
 export const RATE_LIMITS = {
   view: { maxRequests: 1, windowSeconds: 60 },
   query: { maxRequests: 60, windowSeconds: 60 },
-  mutation: { maxRequests: 20, windowSeconds: 60 },
+  // Global per-user write cap (and per-IP for Guests). 40/min is generous for a
+  // human marking through the feed while still capping scripted abuse.
+  mutation: { maxRequests: 40, windowSeconds: 60 },
+  // Sensitive auth mutations (e.g. changePassword): a tight per-user cap to
+  // blunt online brute-force of the current password from a hijacked session.
+  // ~100x stricter than the generic mutation tier.
+  sensitive: { maxRequests: 5, windowSeconds: 15 * 60 },
 } as const satisfies Record<string, RateLimitConfig>
 
 export type RateLimitAction = keyof typeof RATE_LIMITS
@@ -53,9 +59,11 @@ export async function checkRateLimit(
       }
     } else {
       const current = await redis.incr(rlKey)
-      if (current === 1) {
-        await redis.expire(rlKey, config.windowSeconds)
-      }
+      // Always ensure a TTL exists (NX = set only if missing). On the first hit
+      // this starts the window; on later hits it's a cheap no-op. Without it, a
+      // lost `expire` (crash/transient between INCR and EXPIRE) would leave the
+      // counter with no TTL — permanently locking out that user/IP.
+      await redis.expire(rlKey, config.windowSeconds, "NX")
       if (current > config.maxRequests) {
         throw new TRPCError({
           code: "TOO_MANY_REQUESTS",

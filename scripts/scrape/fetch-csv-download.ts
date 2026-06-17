@@ -28,22 +28,32 @@ async function main() {
 
   // Log data URLs intercepted during page load
   console.log("=== Data URLs loaded by the page ===")
-  for (const u of dataUrls) console.log(`  ${u}`)
+  for (const u of dataUrls) {
+    console.log(`  ${u}`)
+  }
 
   // Wait for the modal to appear (the hash should trigger it)
   await page.waitForTimeout(3000)
 
   // Find the download button in the modal
-  const downloadBtn = await page.$("button.record-modal-download, a.record-modal-download, .record-modal-download")
+  const downloadBtn = await page.$(
+    "button.record-modal-download, a.record-modal-download, .record-modal-download"
+  )
   if (downloadBtn) {
     const tag = await downloadBtn.evaluate((el) => el.tagName)
     const text = await downloadBtn.innerText().catch(() => "")
-    const href = await downloadBtn.evaluate((el) => (el as HTMLAnchorElement).href || "")
-    const onclick = await downloadBtn.evaluate((el) => el.getAttribute("onclick") || "")
+    const href = await downloadBtn.evaluate(
+      (el) => (el as HTMLAnchorElement).href || ""
+    )
+    const onclick = await downloadBtn.evaluate(
+      (el) => el.getAttribute("onclick") || ""
+    )
     const dataAttrs = await downloadBtn.evaluate((el) => {
       const attrs: Record<string, string> = {}
       for (const a of el.attributes) {
-        if (a.name.startsWith("data-")) attrs[a.name] = a.value
+        if (a.name.startsWith("data-")) {
+          attrs[a.name] = a.value
+        }
       }
       return attrs
     })
@@ -53,7 +63,7 @@ async function main() {
     console.log(`  text: "${text.trim()}"`)
     console.log(`  href: "${href}"`)
     console.log(`  onclick: "${onclick}"`)
-    console.log(`  data attrs:`, dataAttrs)
+    console.log("  data attrs:", dataAttrs)
 
     // Click it and see what happens
     console.log("\nClicking download button...")
@@ -70,7 +80,9 @@ async function main() {
       await page.waitForTimeout(2000)
     }
   } else {
-    console.log("Download button not found with .record-modal-download selector")
+    console.log(
+      "Download button not found with .record-modal-download selector"
+    )
   }
 
   // Now let's look at ALL the CSV files referenced by the page
@@ -88,7 +100,9 @@ async function main() {
     const result = await page.evaluate(async (url) => {
       try {
         const res = await fetch(url)
-        if (!res.ok) return { status: res.status, ok: false, length: 0, preview: "" }
+        if (!res.ok) {
+          return { status: res.status, ok: false, length: 0, preview: "" }
+        }
         const text = await res.text()
         return {
           status: res.status,
@@ -98,12 +112,20 @@ async function main() {
           preview: text.slice(0, 500),
         }
       } catch (e) {
-        return { status: 0, ok: false, error: String(e), length: 0, preview: "" }
+        return {
+          status: 0,
+          ok: false,
+          error: String(e),
+          length: 0,
+          preview: "",
+        }
       }
     }, csvUrl)
 
     console.log(`\n${csvUrl}:`)
-    console.log(`  status: ${result.status}, ok: ${result.ok}, length: ${result.length}`)
+    console.log(
+      `  status: ${result.status}, ok: ${result.ok}, length: ${result.length}`
+    )
     if (result.ok) {
       console.log(`  lines: ${(result as any).lines}`)
       console.log(`  preview: ${(result as any).preview}`)
@@ -128,7 +150,10 @@ async function main() {
   const scripts = await page.$$eval("script", (els) =>
     els
       .map((el) => (el as HTMLScriptElement).innerText)
-      .filter((s) => s.includes("download") || s.includes("medialink") || s.includes("csv"))
+      .filter(
+        (s) =>
+          s.includes("download") || s.includes("medialink") || s.includes("csv")
+      )
       .map((s) => s.slice(0, 2000))
   )
   for (const [i, s] of scripts.entries()) {

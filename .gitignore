@@ -38,3 +38,12 @@ next-env.d.ts
 
 ufo-files/
 .wrangler/
+
+docs/
+scripts/test/
+
+.trigger/
+
+files_src/
+
+.deepsec/

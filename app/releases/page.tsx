@@ -4,7 +4,7 @@ import { HydrateClient, trpc } from "@/lib/trpc/server"
 import { ReleasesPage } from "./_components/releases-page"
 
 export const metadata: Metadata = {
-  title: "Releases | [ufo]files",
+  title: "Releases - [ufo]files",
   description:
     "Download complete release archives of declassified UFO and UAP files.",
 }

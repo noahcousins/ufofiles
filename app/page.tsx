@@ -1,7 +1,10 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
+import {
+  FileBrowser,
+  FileBrowserSkeleton,
+} from "@/components/files/file-browser"
 import { HydrateClient, trpc } from "@/lib/trpc/server"
-import { FileBrowser, FileBrowserSkeleton } from "./files/file-browser"
 
 const RELEASE_OG_IMAGES: Record<
   string,
@@ -52,7 +55,7 @@ export async function generateMetadata({
   }
 }
 
-export default async function Page({
+export default async function HomePage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -74,16 +77,26 @@ export default async function Page({
       ? (params.sort as "newest" | "oldest" | "most-views" | "least-views")
       : "most-views"
 
-  const release =
-    typeof params.release === "string" ? params.release : undefined
+  // A deep link (e.g. the feed's "Details") arrives as `?fileId=<id>`. Surface
+  // that file first in the list query so its modal opens without paging to it;
+  // it's still subject to the active filters server-side.
+  const fileIdParam =
+    typeof params.fileId === "string" ? Number(params.fileId) : Number.NaN
+  const priorityId =
+    Number.isInteger(fileIdParam) && fileIdParam > 0 ? fileIdParam : undefined
 
+  // biome-ignore lint/complexity/noVoid: fire-and-forget RSC prefetch
   void trpc.releases.list.prefetch()
+  // biome-ignore lint/complexity/noVoid: fire-and-forget RSC prefetch
   void trpc.files.list.prefetchInfinite(
-    { search, agency, type, dateRange, pageSize: 48, sortBy },
+    { search, agency, type, dateRange, pageSize: 48, sortBy, priorityId },
     { initialCursor: 1 }
   )
+  // biome-ignore lint/complexity/noVoid: fire-and-forget RSC prefetch
   void trpc.files.agencies.prefetch()
+  // biome-ignore lint/complexity/noVoid: fire-and-forget RSC prefetch
   void trpc.files.typeCounts.prefetch({ search, agency, dateRange })
+  // biome-ignore lint/complexity/noVoid: fire-and-forget RSC prefetch
   void trpc.files.dateRangeCounts.prefetch()
 
   return (

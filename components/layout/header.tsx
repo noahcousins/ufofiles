@@ -2,48 +2,16 @@
 
 import {
   ArrowRightIcon,
-  ClockCounterClockwise,
-  DownloadSimple,
-  GithubLogoIcon,
-  GlobeHemisphereWest,
-  ListIcon,
   MagnifyingGlassIcon,
-  XLogoIcon,
 } from "@phosphor-icons/react/dist/ssr"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
+import { AuthButtons } from "@/components/auth/auth-buttons"
+import { MobileNav } from "@/components/layout/mobile-nav"
+import { navLinks, socialLinks } from "@/components/layout/nav-items"
 import { Button } from "@/components/ui/button"
 import { Logo } from "@/components/ui/logo"
-import { Separator } from "@/components/ui/separator"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
-
-const navLinks = [
-  { href: "/", label: "Search", icon: MagnifyingGlassIcon },
-  { href: "/globe", label: "Incident Map", icon: GlobeHemisphereWest },
-  { href: "/releases", label: "Releases", icon: DownloadSimple },
-  { href: "/changelog", label: "Changelog", icon: ClockCounterClockwise },
-]
-
-const socialLinks = [
-  {
-    href: "https://x.com/noahwebdev",
-    label: "X (Twitter)",
-    icon: XLogoIcon,
-  },
-  {
-    href: "https://github.com/noahcousins/ufofiles",
-    label: "GitHub",
-    icon: GithubLogoIcon,
-  },
-]
 
 interface HeaderProps {
   children?: React.ReactNode
@@ -61,7 +29,6 @@ export function Header({
   onMobileSearchToggle,
 }: HeaderProps) {
   const pathname = usePathname()
-  const [open, setOpen] = useState(false)
   const isMainPage = pathname === "/"
 
   return (
@@ -111,6 +78,8 @@ export function Header({
               <Icon className="size-4" />
             </Link>
           ))}
+
+          <AuthButtons variant="header" />
         </div>
 
         <div className="flex items-center gap-1 lg:hidden">
@@ -136,55 +105,7 @@ export function Header({
             </Link>
           )}
 
-          <Sheet onOpenChange={setOpen} open={open}>
-            <SheetTrigger
-              aria-label="Open menu"
-              className="inline-flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <ListIcon className="size-5" />
-            </SheetTrigger>
-            <SheetContent className="w-72 rounded-none" side="right">
-              <SheetHeader>
-                <Logo className="h-6" />
-                <SheetTitle className="sr-only">Navigation</SheetTitle>
-              </SheetHeader>
-              <nav className="flex flex-col gap-0.5 p-4">
-                {navLinks.map(({ href, label, icon: Icon }) => (
-                  <Link
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-3 font-medium text-lg text-muted-foreground transition-all hover:bg-muted hover:text-foreground active:translate-y-px",
-                      pathname === href && "bg-muted text-foreground"
-                    )}
-                    href={href}
-                    key={href}
-                    onClick={() => setOpen(false)}
-                  >
-                    <Icon className="size-8" />
-                    {label}
-                  </Link>
-                ))}
-              </nav>
-              <Separator className="w-full" />
-              <nav className="flex flex-col gap-0.5 p-4">
-                {socialLinks.map(({ href, label, icon: Icon }) => (
-                  <Link
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-3 font-medium text-lg text-muted-foreground transition-all hover:bg-muted hover:text-foreground active:translate-y-px",
-                      pathname === href && "bg-muted text-foreground"
-                    )}
-                    href={href}
-                    key={href}
-                    onClick={() => setOpen(false)}
-                    rel="noopener noreferrer"
-                    target="_blank"
-                  >
-                    <Icon className="size-8" />
-                    {label}
-                  </Link>
-                ))}
-              </nav>
-            </SheetContent>
-          </Sheet>
+          <MobileNav />
         </div>
       </div>
       {children}
