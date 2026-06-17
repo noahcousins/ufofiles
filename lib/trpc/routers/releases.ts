@@ -2,6 +2,7 @@ import { asc, count, eq, sum } from "drizzle-orm"
 import { z } from "zod/v4"
 import { cacheKey, withCache } from "@/lib/cache"
 import { db } from "@/lib/db"
+import { publicFileColumns } from "@/lib/db/file-columns"
 import { files, releaseDownloads, releases } from "@/lib/db/schema"
 import { router } from "../init"
 import { rateLimitedProcedure } from "../rateLimit"
@@ -34,7 +35,9 @@ export const releasesRouter = router({
   byId: rateLimitedProcedure("query")
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) =>
-      withCache(cacheKey("releases:byId", input), ONE_DAY, async () => {
+      // v2: files now use the shared public projection (was a bare select() that
+      // leaked textContent + extraction* internal columns).
+      withCache(cacheKey("releases:byId:v2", input), ONE_DAY, async () => {
         const [release] = await db
           .select()
           .from(releases)
@@ -46,7 +49,7 @@ export const releasesRouter = router({
         }
 
         const releaseFiles = await db
-          .select()
+          .select(publicFileColumns)
           .from(files)
           .where(eq(files.releaseId, input.id))
 

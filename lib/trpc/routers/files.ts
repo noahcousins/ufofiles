@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, gte, ilike, lte, sql } from "drizzle-orm"
 import { z } from "zod/v4"
 import { cacheKey, withCache } from "@/lib/cache"
 import { db } from "@/lib/db"
+import { publicFileColumns } from "@/lib/db/file-columns"
 import { files, fileTags, tags } from "@/lib/db/schema"
 import { router } from "../init"
 import { rateLimitedProcedure } from "../rateLimit"
@@ -9,16 +10,23 @@ import { rateLimitedProcedure } from "../rateLimit"
 const SIX_HOURS = 6 * 60 * 60
 const ONE_DAY = 24 * 60 * 60
 
+// Bound free-text / array inputs so an attacker can't blow up cache-key
+// cardinality (and query cost) with unbounded, ever-varying inputs.
+const MAX_SEARCH_LEN = 200
+const MAX_AGENCY_LEN = 200
+const MAX_TAGS = 50
+const MAX_TAG_LEN = 100
+
 const crossFilterInput = z
   .object({
-    search: z.string().optional(),
-    agency: z.string().optional(),
+    search: z.string().max(MAX_SEARCH_LEN).optional(),
+    agency: z.string().max(MAX_AGENCY_LEN).optional(),
     type: z.enum(["image", "video", "pdf", "other"]).optional(),
     dateRange: z
       .enum(["2010-now", "2000s", "1960-2000", "pre-1960"])
       .optional(),
     releaseId: z.number().optional(),
-    tags: z.array(z.string()).optional(),
+    tags: z.array(z.string().max(MAX_TAG_LEN)).max(MAX_TAGS).optional(),
   })
   .optional()
 
@@ -170,14 +178,14 @@ export const filesRouter = router({
   list: rateLimitedProcedure("query")
     .input(
       z.object({
-        search: z.string().optional(),
-        agency: z.string().optional(),
+        search: z.string().max(MAX_SEARCH_LEN).optional(),
+        agency: z.string().max(MAX_AGENCY_LEN).optional(),
         type: z.enum(["image", "video", "pdf", "other"]).optional(),
         dateRange: z
           .enum(["2010-now", "2000s", "1960-2000", "pre-1960"])
           .optional(),
         releaseId: z.number().optional(),
-        tags: z.array(z.string()).optional(),
+        tags: z.array(z.string().max(MAX_TAG_LEN)).max(MAX_TAGS).optional(),
         cursor: z.number().min(1).nullish(),
         pageSize: z.number().min(1).max(100).default(48),
         sortBy: z
@@ -214,28 +222,9 @@ export const filesRouter = router({
 
           const where = conditions.length > 0 ? and(...conditions) : undefined
 
-          // exclude textContent from responses - too large for list queries
-          const listColumns = {
-            id: files.id,
-            releaseId: files.releaseId,
-            title: files.title,
-            agency: files.agency,
-            releaseDate: files.releaseDate,
-            incidentDate: files.incidentDate,
-            incidentYear: files.incidentYear,
-            incidentLocation: files.incidentLocation,
-            type: files.type,
-            r2Key: files.r2Key,
-            fileSize: files.fileSize,
-            mimeType: files.mimeType,
-            documentUrl: files.documentUrl,
-            thumbnailUrl: files.thumbnailUrl,
-            videoId: files.videoId,
-            description: files.description,
-            transcriptR2Key: files.transcriptR2Key,
-            redacted: files.redacted,
-            createdAt: files.createdAt,
-          }
+          // Shared public projection (excludes textContent + extraction* — see
+          // lib/db/file-columns.ts).
+          const listColumns = publicFileColumns
 
           const sortByViews =
             sortBy === "most-views" || sortBy === "least-views"
@@ -294,27 +283,7 @@ export const filesRouter = router({
     .query(async ({ input }) =>
       withCache(cacheKey("files:byId", input), ONE_DAY, async () => {
         const [file] = await db
-          .select({
-            id: files.id,
-            releaseId: files.releaseId,
-            title: files.title,
-            agency: files.agency,
-            releaseDate: files.releaseDate,
-            incidentDate: files.incidentDate,
-            incidentYear: files.incidentYear,
-            incidentLocation: files.incidentLocation,
-            type: files.type,
-            r2Key: files.r2Key,
-            fileSize: files.fileSize,
-            mimeType: files.mimeType,
-            documentUrl: files.documentUrl,
-            thumbnailUrl: files.thumbnailUrl,
-            videoId: files.videoId,
-            description: files.description,
-            transcriptR2Key: files.transcriptR2Key,
-            redacted: files.redacted,
-            createdAt: files.createdAt,
-          })
+          .select(publicFileColumns)
           .from(files)
           .where(eq(files.id, input.id))
           .limit(1)
