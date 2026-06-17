@@ -5,7 +5,7 @@ import { HydrateClient, trpc } from "@/lib/trpc/server"
 import { Globe } from "./_components/globe"
 
 export const metadata: Metadata = {
-  title: "UFO & UAP Incident Map | [ufo]files",
+  title: "UFO & UAP Incident Map - [ufo]files",
   description:
     "Explore UFO and UAP files by reported location on an interactive map.",
   alternates: {
