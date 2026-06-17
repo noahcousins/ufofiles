@@ -14,6 +14,7 @@ import { useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { prefetchIfNew } from "@/lib/file-cache"
 import {
+  getFilePagePath,
   getFileUrl,
   getStreamingVideoUrl,
   withDownloadParam,
@@ -119,9 +120,9 @@ export function FileViewer({
         return
       }
       if (e.key === "ArrowLeft" && prevFileKey) {
-        router.push(`/files/${encodeURIComponent(prevFileKey)}`)
+        router.push(getFilePagePath(prevFileKey))
       } else if (e.key === "ArrowRight" && nextFileKey) {
-        router.push(`/files/${encodeURIComponent(nextFileKey)}`)
+        router.push(getFilePagePath(nextFileKey))
       } else if (e.key === "Escape") {
         router.push("/")
       }
@@ -179,7 +180,7 @@ export function FileViewer({
                       direction: "prev",
                       file_key: prevFileKey,
                     })
-                    router.push(`/files/${encodeURIComponent(prevFileKey)}`)
+                    router.push(getFilePagePath(prevFileKey))
                   }
                 }}
                 size="sm"
@@ -196,7 +197,7 @@ export function FileViewer({
                       direction: "prev",
                       file_key: prevFileKey,
                     })
-                    router.push(`/files/${encodeURIComponent(prevFileKey)}`)
+                    router.push(getFilePagePath(prevFileKey))
                   }
                 }}
                 size="sm"
@@ -216,7 +217,7 @@ export function FileViewer({
                       direction: "next",
                       file_key: nextFileKey,
                     })
-                    router.push(`/files/${encodeURIComponent(nextFileKey)}`)
+                    router.push(getFilePagePath(nextFileKey))
                   }
                 }}
                 size="sm"
@@ -233,7 +234,7 @@ export function FileViewer({
                       direction: "next",
                       file_key: nextFileKey,
                     })
-                    router.push(`/files/${encodeURIComponent(nextFileKey)}`)
+                    router.push(getFilePagePath(nextFileKey))
                   }
                 }}
                 size="sm"
