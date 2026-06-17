@@ -31,6 +31,17 @@ export function getFileUrl(r2Key: string): string {
 }
 
 /**
+ * In-app file page path (`/files/...`). Encodes each path SEGMENT but keeps real
+ * slashes between them — never `encodeURIComponent(wholeKey)`, which turns the
+ * slashes into `%2F`. Real slashes give clean, shareable URLs and avoid `%2F`,
+ * which CDNs/proxies routinely reject as a path-traversal guard. The catch-all
+ * `/files/[...path]` route reconstructs the r2Key by joining the segments.
+ */
+export function getFilePagePath(r2Key: string): string {
+  return `/files/${r2Key.split("/").map(encodeURIComponent).join("/")}`
+}
+
+/**
  * Public worker URL for a static brand asset (the auth photo, logos, OG images)
  * served from the assets bucket's `static/` folder — i.e. offloaded from Next's
  * /public to the Worker + R2.
