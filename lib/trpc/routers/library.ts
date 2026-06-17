@@ -1,7 +1,7 @@
-import { desc, eq } from "drizzle-orm"
+import { and, desc, eq } from "drizzle-orm"
 import { z } from "zod/v4"
 import { db } from "@/lib/db"
-import { bookmarks, clips, files } from "@/lib/db/schema"
+import { bookmarks, clipRenders, clips, files } from "@/lib/db/schema"
 import { router } from "../init"
 import { protectedProcedure } from "../procedures"
 
@@ -48,10 +48,22 @@ export const libraryRouter = router({
             endSeconds: clips.endSeconds,
             note: clips.note,
             createdAt: clips.createdAt,
+            // Render status joined on the content key (no FK, see ADR-0002), so
+            // each clip arrives with its status and the Library never paints a
+            // clip before knowing whether it's ready.
+            renderStatus: clipRenders.status,
             file: fileColumns,
           })
           .from(clips)
           .innerJoin(files, eq(files.id, clips.fileId))
+          .leftJoin(
+            clipRenders,
+            and(
+              eq(clipRenders.fileId, clips.fileId),
+              eq(clipRenders.startSeconds, clips.startSeconds),
+              eq(clipRenders.endSeconds, clips.endSeconds)
+            )
+          )
           .where(eq(clips.userId, ctx.user.id))
           .orderBy(desc(clips.createdAt)),
       ])
