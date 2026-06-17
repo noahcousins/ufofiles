@@ -117,8 +117,10 @@ export const accountRouter = router({
     }),
 
   // Change password. Requires the current password (better-auth verifies it)
-  // and revokes other sessions so a leaked one can't survive a rotation.
-  changePassword: protectedProcedure("mutation")
+  // and revokes other sessions so a leaked one can't survive a rotation. Uses
+  // the strict "sensitive" rate-limit tier (user-keyed) so a hijacked session
+  // can't brute-force the current password through the generic mutation cap.
+  changePassword: protectedProcedure("sensitive")
     .input(
       z.object({
         currentPassword: z.string().min(1).max(128),

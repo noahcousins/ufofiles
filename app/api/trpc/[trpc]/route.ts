@@ -10,8 +10,9 @@ const handler = (req: Request) =>
     router: appRouter,
     createContext: async (): Promise<TRPCContext> => {
       const clientIp =
-        req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+        req.headers.get("x-vercel-forwarded-for")?.trim() ??
         req.headers.get("x-real-ip") ??
+        req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
         undefined
 
       const session = await auth.api.getSession({ headers: req.headers })
