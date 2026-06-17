@@ -43,3 +43,5 @@ docs/
 scripts/test/
 
 .trigger/
+
+files_src/
