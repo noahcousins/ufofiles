@@ -119,6 +119,15 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes flicker-fastest {
   0% {
     opacity: 1;

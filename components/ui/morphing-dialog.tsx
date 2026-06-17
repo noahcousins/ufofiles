@@ -247,10 +247,19 @@ function MorphingDialogContent({
     }
   }, [isOpen])
 
-  useClickOutside(containerRef, () => {
-    if (isOpen) {
-      setIsOpen(false)
+  useClickOutside(containerRef, (event) => {
+    if (!isOpen) {
+      return
     }
+    // Ignore interactions inside a stacked overlay (e.g. the auth or verify
+    // dialog, which portals to <body> outside this dialog's DOM). Without this,
+    // mousing into an input in that dialog reads as an "outside" click and
+    // closes the file/video viewer — clearing its ?fileId / ?v URL param.
+    const target = event.target as HTMLElement | null
+    if (target?.closest('[role="dialog"], [role="alertdialog"]')) {
+      return
+    }
+    setIsOpen(false)
   })
 
   return (

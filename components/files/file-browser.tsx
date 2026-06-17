@@ -88,12 +88,8 @@ export function FileBrowser() {
     () =>
       releasesList.length > 0
         ? releasesList.reduce((a, b) => {
-            const aDate = a.releaseDate
-              ? new Date(a.releaseDate).getTime()
-              : 0
-            const bDate = b.releaseDate
-              ? new Date(b.releaseDate).getTime()
-              : 0
+            const aDate = a.releaseDate ? new Date(a.releaseDate).getTime() : 0
+            const bDate = b.releaseDate ? new Date(b.releaseDate).getTime() : 0
             return bDate > aDate ? b : a
           })
         : null,
@@ -106,7 +102,9 @@ export function FileBrowser() {
     : false
 
   const [seenNewestRelease, setSeenNewestRelease] = useState(() => {
-    if (typeof window === "undefined") return true
+    if (typeof window === "undefined") {
+      return true
+    }
     return localStorage.getItem("seen-newest-release") === newestRelease?.name
   })
 
@@ -124,9 +122,16 @@ export function FileBrowser() {
     ? releasesList.find((r) => r.name === filters.release)?.id
     : undefined
 
+  // A deep link (e.g. the feed's "Details") lands with `?fileId` set. Pass it
+  // once as the list query's priorityId so that file sorts to the front of the
+  // real (still-filtered) results and its modal opens without paging to it.
+  // Captured on mount so clicking around the grid doesn't re-sort it.
+  const priorityIdRef = useRef(filters.fileId)
+
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
     trpc.files.list.useInfiniteQuery(
       {
+        priorityId: priorityIdRef.current ?? undefined,
         search: searchParams.get("search") || undefined,
         agency: searchParams.get("agency") || undefined,
         type:
@@ -139,7 +144,9 @@ export function FileBrowser() {
             | "1960-2000"
             | "pre-1960") || undefined,
         releaseId: selectedReleaseId,
-        tags: searchParams.get("tag") ? searchParams.get("tag")!.split(",") : undefined,
+        tags: searchParams.get("tag")
+          ? searchParams.get("tag")!.split(",")
+          : undefined,
         pageSize: PAGE_SIZE,
         sortBy:
           (searchParams.get("sort") as
@@ -190,8 +197,7 @@ export function FileBrowser() {
   const crossFilters = {
     search: filters.search || undefined,
     agency: filters.agency || undefined,
-    type:
-      (filters.type as "image" | "video" | "pdf" | "other") || undefined,
+    type: (filters.type as "image" | "video" | "pdf" | "other") || undefined,
     dateRange:
       (filters.dateRange as "2010-now" | "2000s" | "1960-2000" | "pre-1960") ||
       undefined,
@@ -223,8 +229,8 @@ export function FileBrowser() {
       <Header
         mobileSearchOpen={mobileSearchOpen}
         newReleaseName={unseenNewReleaseName}
-        onNewReleaseClick={markReleaseSeen}
         onMobileSearchToggle={() => setMobileSearchOpen((prev) => !prev)}
+        onNewReleaseClick={markReleaseSeen}
       >
         <FileFilters
           agencies={agencies}
@@ -257,18 +263,18 @@ export function FileBrowser() {
             }
           }}
           onMarkReleaseSeen={markReleaseSeen}
+          onMobileSearchClose={() => setMobileSearchOpen(false)}
           onReleaseChange={(val) => {
             setFilters({ release: val })
             if (val) {
               posthog.capture("release_filter_applied", { release: val })
             }
           }}
-          release={filters.release}
-          releaseCounts={releaseCounts}
-          releases={releasesList}
-          seenNewestRelease={seenNewestRelease}
-          tag={filters.tag}
-          tags={tagsList ?? []}
+          onSearchChange={handleSearchChange}
+          onSortChange={(val) => {
+            setFilters({ sort: val })
+            posthog.capture("sort_changed", { sort: val })
+          }}
           onTagChange={(slug) => {
             if (!slug) {
               setFilters({ tag: null })
@@ -283,20 +289,20 @@ export function FileBrowser() {
               posthog.capture("tag_filter_applied", { tag: slug })
             }
           }}
-          onMobileSearchClose={() => setMobileSearchOpen(false)}
-          onSearchChange={handleSearchChange}
-          onSortChange={(val) => {
-            setFilters({ sort: val })
-            posthog.capture("sort_changed", { sort: val })
-          }}
           onTypeChange={(val) => {
             setFilters({ type: val })
             if (val) {
               posthog.capture("type_filter_applied", { file_type: val })
             }
           }}
+          release={filters.release}
+          releaseCounts={releaseCounts}
+          releases={releasesList}
           searchInput={searchInput}
+          seenNewestRelease={seenNewestRelease}
           sort={filters.sort}
+          tag={filters.tag}
+          tags={tagsList ?? []}
           totalFiles={total}
           type={filters.type}
           typeCounts={typeCounts ?? []}

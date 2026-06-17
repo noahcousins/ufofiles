@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, gte, ilike, lte, sql } from "drizzle-orm"
 import { z } from "zod/v4"
 import { cacheKey, withCache } from "@/lib/cache"
 import { db } from "@/lib/db"
+import { publicFileColumns } from "@/lib/db/file-columns"
 import { files, fileTags, tags } from "@/lib/db/schema"
 import { router } from "../init"
 import { rateLimitedProcedure } from "../rateLimit"
@@ -9,16 +10,23 @@ import { rateLimitedProcedure } from "../rateLimit"
 const SIX_HOURS = 6 * 60 * 60
 const ONE_DAY = 24 * 60 * 60
 
+// Bound free-text / array inputs so an attacker can't blow up cache-key
+// cardinality (and query cost) with unbounded, ever-varying inputs.
+const MAX_SEARCH_LEN = 200
+const MAX_AGENCY_LEN = 200
+const MAX_TAGS = 50
+const MAX_TAG_LEN = 100
+
 const crossFilterInput = z
   .object({
-    search: z.string().optional(),
-    agency: z.string().optional(),
+    search: z.string().max(MAX_SEARCH_LEN).optional(),
+    agency: z.string().max(MAX_AGENCY_LEN).optional(),
     type: z.enum(["image", "video", "pdf", "other"]).optional(),
     dateRange: z
       .enum(["2010-now", "2000s", "1960-2000", "pre-1960"])
       .optional(),
     releaseId: z.number().optional(),
-    tags: z.array(z.string()).optional(),
+    tags: z.array(z.string().max(MAX_TAG_LEN)).max(MAX_TAGS).optional(),
   })
   .optional()
 
@@ -95,23 +103,99 @@ function buildFilterConditions(input: {
   return conditions
 }
 
+// Shared column projection + row mapper for the video feed, so the paginated
+// feed and the single-video "start here" lookup return identical item shapes.
+const feedColumns = sql`
+  f.id,
+  f.title,
+  f.agency,
+  f.r2_key,
+  f.file_size,
+  f.mime_type,
+  f.incident_date,
+  f.incident_location,
+  f.description,
+  COALESCE(
+    (SELECT json_agg(json_build_object('slug', t.slug, 'label', t.label))
+     FROM file_tags ft
+     JOIN tags t ON t.id = ft.tag_id
+     WHERE ft.file_id = f.id),
+    '[]'::json
+  ) AS tags,
+  COALESCE(
+    (SELECT json_agg(
+       json_build_object(
+         'id', vm.id,
+         'startSeconds', vm.start_seconds,
+         'endSeconds', vm.end_seconds,
+         'description', vm.description
+       ) ORDER BY vm.sort_order
+     )
+     FROM video_moments vm
+     WHERE vm.file_id = f.id),
+    '[]'::json
+  ) AS moments
+`
+
+interface FeedRow {
+  agency: string | null
+  description: string | null
+  file_size: number | string | null
+  id: number
+  incident_date: string | null
+  incident_location: string | null
+  mime_type: string | null
+  moments:
+    | {
+        id: number
+        startSeconds: number
+        endSeconds: number | null
+        description: string
+      }[]
+    | null
+  r2_key: string | null
+  tags: { slug: string; label: string }[] | null
+  title: string
+}
+
+function mapFeedRow(row: FeedRow) {
+  return {
+    id: row.id,
+    title: row.title,
+    agency: row.agency,
+    r2Key: row.r2_key,
+    fileSize: row.file_size ? Number(row.file_size) : null,
+    mimeType: row.mime_type,
+    incidentDate: row.incident_date,
+    incidentLocation: row.incident_location,
+    description: row.description,
+    tags: row.tags ?? [],
+    moments: row.moments ?? [],
+  }
+}
+
 export const filesRouter = router({
   list: rateLimitedProcedure("query")
     .input(
       z.object({
-        search: z.string().optional(),
-        agency: z.string().optional(),
+        search: z.string().max(MAX_SEARCH_LEN).optional(),
+        agency: z.string().max(MAX_AGENCY_LEN).optional(),
         type: z.enum(["image", "video", "pdf", "other"]).optional(),
         dateRange: z
           .enum(["2010-now", "2000s", "1960-2000", "pre-1960"])
           .optional(),
         releaseId: z.number().optional(),
-        tags: z.array(z.string()).optional(),
+        tags: z.array(z.string().max(MAX_TAG_LEN)).max(MAX_TAGS).optional(),
         cursor: z.number().min(1).nullish(),
         pageSize: z.number().min(1).max(100).default(48),
         sortBy: z
           .enum(["newest", "oldest", "most-views", "least-views"])
           .default("most-views"),
+        // A deep-linked file to surface first (e.g. the feed's "Details").
+        // Still subject to the filters above — it only appears if it matches,
+        // so filtering stays correct; when present and matching, it sorts to
+        // the front so its modal opens without paging to find it.
+        priorityId: z.number().int().positive().optional(),
       })
     )
     .query(async ({ input }) => {
@@ -120,7 +204,7 @@ export const filesRouter = router({
       const page = cursor ?? 1
 
       return withCache(
-        cacheKey("files:list:v7", {
+        cacheKey("files:list:v8", {
           search: input.search,
           agency: input.agency,
           type: input.type,
@@ -130,6 +214,7 @@ export const filesRouter = router({
           page,
           pageSize,
           sortBy,
+          priorityId: input.priorityId,
         }),
         SIX_HOURS,
         async () => {
@@ -137,31 +222,18 @@ export const filesRouter = router({
 
           const where = conditions.length > 0 ? and(...conditions) : undefined
 
-          // exclude textContent from responses - too large for list queries
-          const listColumns = {
-            id: files.id,
-            releaseId: files.releaseId,
-            title: files.title,
-            agency: files.agency,
-            releaseDate: files.releaseDate,
-            incidentDate: files.incidentDate,
-            incidentYear: files.incidentYear,
-            incidentLocation: files.incidentLocation,
-            type: files.type,
-            r2Key: files.r2Key,
-            fileSize: files.fileSize,
-            mimeType: files.mimeType,
-            documentUrl: files.documentUrl,
-            thumbnailUrl: files.thumbnailUrl,
-            videoId: files.videoId,
-            description: files.description,
-            transcriptR2Key: files.transcriptR2Key,
-            redacted: files.redacted,
-            createdAt: files.createdAt,
-          }
+          // Shared public projection (excludes textContent + extraction* — see
+          // lib/db/file-columns.ts).
+          const listColumns = publicFileColumns
 
           const sortByViews =
             sortBy === "most-views" || sortBy === "least-views"
+
+          // When a priority file is requested, sort it to the very front (it
+          // still has to pass `where`, so it drops out when filtered away).
+          const priorityOrder = input.priorityId
+            ? [sql`(${files.id} = ${input.priorityId}) DESC`]
+            : []
 
           const items = sortByViews
             ? await (() => {
@@ -171,7 +243,11 @@ export const filesRouter = router({
                   .select(listColumns)
                   .from(files)
                   .where(where)
-                  .orderBy(orderFn(viewCountExpr), desc(files.createdAt))
+                  .orderBy(
+                    ...priorityOrder,
+                    orderFn(viewCountExpr),
+                    desc(files.createdAt)
+                  )
                   .limit(pageSize)
                   .offset((page - 1) * pageSize)
               })()
@@ -179,7 +255,10 @@ export const filesRouter = router({
                 .select(listColumns)
                 .from(files)
                 .where(where)
-                .orderBy((sortBy === "newest" ? desc : asc)(files.createdAt))
+                .orderBy(
+                  ...priorityOrder,
+                  (sortBy === "newest" ? desc : asc)(files.createdAt)
+                )
                 .limit(pageSize)
                 .offset((page - 1) * pageSize)
 
@@ -204,27 +283,7 @@ export const filesRouter = router({
     .query(async ({ input }) =>
       withCache(cacheKey("files:byId", input), ONE_DAY, async () => {
         const [file] = await db
-          .select({
-            id: files.id,
-            releaseId: files.releaseId,
-            title: files.title,
-            agency: files.agency,
-            releaseDate: files.releaseDate,
-            incidentDate: files.incidentDate,
-            incidentYear: files.incidentYear,
-            incidentLocation: files.incidentLocation,
-            type: files.type,
-            r2Key: files.r2Key,
-            fileSize: files.fileSize,
-            mimeType: files.mimeType,
-            documentUrl: files.documentUrl,
-            thumbnailUrl: files.thumbnailUrl,
-            videoId: files.videoId,
-            description: files.description,
-            transcriptR2Key: files.transcriptR2Key,
-            redacted: files.redacted,
-            createdAt: files.createdAt,
-          })
+          .select(publicFileColumns)
           .from(files)
           .where(eq(files.id, input.id))
           .limit(1)
@@ -338,39 +397,106 @@ export const filesRouter = router({
   tags: rateLimitedProcedure("query")
     .input(crossFilterInput)
     .query(async ({ input }) =>
-      withCache(
-        cacheKey("files:tags:v2", input),
+      withCache(cacheKey("files:tags:v2", input), SIX_HOURS, async () => {
+        const conditions = buildFilterConditions({
+          ...input,
+          tags: undefined,
+        })
+
+        const where =
+          conditions.length > 0 ? sql`AND ${and(...conditions)}` : sql``
+
+        const result = await db
+          .select({
+            slug: tags.slug,
+            label: tags.label,
+            category: tags.category,
+            count: sql<number>`COUNT(DISTINCT ${fileTags.fileId})::int`.as(
+              "count"
+            ),
+          })
+          .from(tags)
+          .innerJoin(fileTags, eq(fileTags.tagId, tags.id))
+          .where(
+            sql`${fileTags.fileId} IN (SELECT ${files.id} FROM ${files} WHERE 1=1 ${where})`
+          )
+          .groupBy(tags.slug, tags.label, tags.category)
+          .orderBy(desc(sql`count`))
+
+        return result
+      })
+    ),
+
+  videoFeed: rateLimitedProcedure("query")
+    .input(
+      z.object({
+        cursor: z.number().min(1).nullish(),
+        pageSize: z.number().min(1).max(20).default(5),
+        seed: z.string().default("default"),
+      })
+    )
+    .query(async ({ input }) => {
+      const { cursor, pageSize = 5, seed } = input
+      const page = cursor ?? 1
+
+      return withCache(
+        cacheKey("files:videoFeed:v5", { page, pageSize, seed }),
         SIX_HOURS,
         async () => {
-          const conditions = buildFilterConditions({
-            ...input,
-            tags: undefined,
-          })
+          // All releases are eligible EXCEPT release-1, whose videos were never
+          // transcoded to HLS — they'd appear in the feed and fail to play.
+          // (Transcode + upload release-1, then drop this exclusion.)
+          const feedQuery = sql`
+            SELECT ${feedColumns}
+            FROM files f
+            WHERE f.mime_type ILIKE 'video/%' AND f.r2_key IS NOT NULL
+              AND f.r2_key NOT LIKE 'source/release-1/%'
+            ORDER BY md5(f.id::text || ${seed})
+            LIMIT ${pageSize}
+            OFFSET ${(page - 1) * pageSize}
+          `
 
-          const where =
-            conditions.length > 0
-              ? sql`AND ${and(...conditions)}`
-              : sql``
+          const countQuery = sql`
+            SELECT COUNT(*) AS count
+            FROM files f
+            WHERE f.mime_type ILIKE 'video/%' AND f.r2_key IS NOT NULL
+              AND f.r2_key NOT LIKE 'source/release-1/%'
+          `
 
-          const result = await db
-            .select({
-              slug: tags.slug,
-              label: tags.label,
-              category: tags.category,
-              count:
-                sql<number>`COUNT(DISTINCT ${fileTags.fileId})::int`.as(
-                  "count"
-                ),
-            })
-            .from(tags)
-            .innerJoin(fileTags, eq(fileTags.tagId, tags.id))
-            .where(
-              sql`${fileTags.fileId} IN (SELECT ${files.id} FROM ${files} WHERE 1=1 ${where})`
-            )
-            .groupBy(tags.slug, tags.label, tags.category)
-            .orderBy(desc(sql`count`))
+          const items = await db.execute(feedQuery)
+          const [totalRow] = await db.execute(countQuery)
+          const total = Number((totalRow as any).count)
+          const totalPages = Math.ceil(total / pageSize)
 
-          return result
+          return {
+            items: (items as FeedRow[]).map(mapFeedRow),
+            total,
+            nextCursor: page < totalPages ? page + 1 : undefined,
+          }
+        }
+      )
+    }),
+
+  // The single video a share link points at, in the feed item shape, so the
+  // feed can pin it first and then randomize the rest from there.
+  feedVideoById: rateLimitedProcedure("query")
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(({ input }) =>
+      withCache(
+        cacheKey("files:feedVideoById:v2", { id: input.id }),
+        SIX_HOURS,
+        async () => {
+          const rows = await db.execute(sql`
+            SELECT ${feedColumns}
+            FROM files f
+            WHERE f.id = ${input.id}
+              AND f.mime_type ILIKE 'video/%'
+              AND f.r2_key IS NOT NULL
+              AND f.r2_key NOT LIKE 'source/release-1/%'
+            LIMIT 1
+          `)
+          const row = (rows as FeedRow[])[0]
+          return row ? mapFeedRow(row) : null
         }
       )
     ),
@@ -387,8 +513,7 @@ export const filesRouter = router({
             releaseId: undefined,
           })
 
-          const where =
-            conditions.length > 0 ? and(...conditions) : undefined
+          const where = conditions.length > 0 ? and(...conditions) : undefined
 
           const result = await db
             .select({

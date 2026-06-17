@@ -50,13 +50,17 @@ function getMimeType(key: string): string {
     gif: "image/gif",
     webp: "image/webp",
     json: "application/json",
+    m3u8: "application/vnd.apple.mpegurl",
+    ts: "video/mp2t",
   }
   return types[ext ?? ""] ?? "application/octet-stream"
 }
 
 function isExemptFromRateLimit(key: string): boolean {
   const ext = key.split(".").pop()?.toLowerCase() ?? ""
-  return ["json", "jpg", "jpeg", "png", "webp", "gif"].includes(ext)
+  return ["json", "jpg", "jpeg", "png", "webp", "gif", "m3u8", "ts"].includes(
+    ext
+  )
 }
 
 async function checkRateLimit(
@@ -125,7 +129,17 @@ export default {
     }
 
     const url = new URL(request.url)
-    const rawPath = decodeURIComponent(url.pathname.slice(1)) // strip leading /
+    // Guard against malformed `%` sequences — decodeURIComponent throws a
+    // URIError on those, which would otherwise surface as an unhandled 500.
+    let rawPath: string
+    try {
+      rawPath = decodeURIComponent(url.pathname.slice(1)) // strip leading /
+    } catch {
+      return new Response("Bad Request", {
+        status: 400,
+        headers: CORS_HEADERS,
+      })
+    }
 
     if (!rawPath) {
       return new Response("Not Found", { status: 404 })
@@ -195,7 +209,13 @@ export default {
     }
 
     const filename = objectKey.split("/").pop() ?? objectKey
-    const disposition = filename.endsWith(".zip") ? "attachment" : "inline"
+    // Force a download (vs. opening inline) when the client asks for it via
+    // `?download`. The `download` attribute on cross-origin <a> tags is ignored
+    // by browsers, so the disposition header is the only reliable way. Zips are
+    // always attachments.
+    const forceDownload =
+      url.searchParams.has("download") || filename.endsWith(".zip")
+    const disposition = forceDownload ? "attachment" : "inline"
     headers.set("Content-Disposition", `${disposition}; filename="${filename}"`)
 
     // Respond with 206 Partial Content for Range requests (not cached)

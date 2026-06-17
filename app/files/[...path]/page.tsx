@@ -1,10 +1,11 @@
 import { asc, count, desc, eq, gt, isNotNull, lt } from "drizzle-orm"
 import type { Metadata } from "next"
+import { notFound } from "next/navigation"
+import { FileViewer } from "@/components/files/viewers/file-viewer"
 import { db } from "@/lib/db"
 import { files } from "@/lib/db/schema"
 import { getFirstPdfPageUrl } from "@/lib/file-url"
 import { getFile } from "@/lib/r2"
-import { FileViewer } from "./file-viewer"
 
 interface Props {
   params: Promise<{ path: string[] }>
@@ -12,9 +13,22 @@ interface Props {
 
 const FILE_EXTENSION_REGEX = /\.[^/.]+$/
 
+// Next already decodes route params; this extra decode handles keys that were
+// double-encoded in the URL. Guard against malformed `%` sequences so a bad URL
+// falls through to a normal not-found (no matching r2Key) instead of throwing a
+// URIError → 500.
+function decodeFileKey(path: string[]): string {
+  const joined = path.join("/")
+  try {
+    return decodeURIComponent(joined)
+  } catch {
+    return joined
+  }
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { path } = await params
-  const fileKey = decodeURIComponent(path.join("/"))
+  const fileKey = decodeFileKey(path)
   const docName =
     fileKey.replace(FILE_EXTENSION_REGEX, "").split("/").pop() || fileKey
 
@@ -92,7 +106,7 @@ async function getPdfPageCount(fileKey: string): Promise<number> {
 
 export default async function FileViewerPage({ params }: Props) {
   const { path } = await params
-  const fileKey = decodeURIComponent(path.join("/"))
+  const fileKey = decodeFileKey(path)
 
   const [currentFile, prevFile, nextFile, [totalResult], pageCount] =
     await Promise.all([
@@ -126,28 +140,32 @@ export default async function FileViewerPage({ params }: Props) {
       getPdfPageCount(fileKey),
     ])
 
-  let currentIndex = 0
-  if (currentFile) {
-    const [{ count: before }] = await db
-      .select({ count: count() })
-      .from(files)
-      .where(lt(files.r2Key, fileKey))
-    currentIndex = before
+  // No matching file (unknown key, or a malformed/garbage path that decoded to
+  // nothing real) → render the 404 page instead of a viewer that would fire a
+  // doomed fetch for a file that doesn't exist.
+  if (!currentFile) {
+    notFound()
   }
+
+  const [{ count: before }] = await db
+    .select({ count: count() })
+    .from(files)
+    .where(lt(files.r2Key, fileKey))
+  const currentIndex = before
 
   return (
     <FileViewer
       currentIndex={currentIndex}
-      documentUrl={currentFile?.documentUrl}
+      documentUrl={currentFile.documentUrl}
       fileDate=""
-      fileId={currentFile?.id ?? null}
+      fileId={currentFile.id}
       fileKey={fileKey}
-      fileSize={Number(currentFile?.fileSize ?? 0)}
+      fileSize={Number(currentFile.fileSize ?? 0)}
       nextFileKey={nextFile?.r2Key ?? null}
       pageCount={pageCount}
       prevFileKey={prevFile?.r2Key ?? null}
       totalFiles={totalResult.count}
-      transcriptR2Key={currentFile?.transcriptR2Key ?? null}
+      transcriptR2Key={currentFile.transcriptR2Key ?? null}
     />
   )
 }

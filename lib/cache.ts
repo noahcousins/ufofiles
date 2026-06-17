@@ -28,21 +28,17 @@ function stableStringify(obj: unknown): string {
     return String(obj)
   }
   if (Array.isArray(obj)) {
-    return JSON.stringify(obj)
+    // Arrays are order-significant; recurse so nested objects sort too.
+    return `[${obj.map((v) => stableStringify(v)).join(",")}]`
   }
-  const sorted = Object.keys(obj as Record<string, unknown>).sort()
-  return JSON.stringify(
-    sorted.reduce(
-      (acc, key) => {
-        const val = (obj as Record<string, unknown>)[key]
-        if (val !== undefined) {
-          acc[key] = val
-        }
-        return acc
-      },
-      {} as Record<string, unknown>
-    )
-  )
+  // Recurse into nested objects with sorted keys, so logically-equal inputs
+  // (same keys/values, different key order, at ANY depth) map to one cache key.
+  const record = obj as Record<string, unknown>
+  const parts = Object.keys(record)
+    .sort()
+    .filter((key) => record[key] !== undefined)
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
+  return `{${parts.join(",")}}`
 }
 
 export function cacheKey(procedure: string, input?: unknown): string {

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/morphing-dialog"
 import {
   getCardThumbUrl,
+  getFilePagePath,
   getFileUrl,
   getFirstPdfPageUrl,
   getVideoGifUrl,
@@ -234,7 +235,7 @@ export function FileCard({
       : category === "PDF" && file.r2Key
         ? getFirstPdfPageUrl(file.r2Key)
         : previewSrc
-  const fileUrl = file.r2Key ? `/files/${encodeURIComponent(file.r2Key)}` : "#"
+  const fileUrl = file.r2Key ? getFilePagePath(file.r2Key) : "#"
 
   return (
     <MorphingDialog
