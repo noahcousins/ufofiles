@@ -25,12 +25,14 @@ async function assertOwnsMark(
   markType: "bookmark" | "clip",
   markId: number
 ) {
-  const table = markType === "bookmark" ? bookmarks : clips
-  const owned = await db.query[
-    markType === "bookmark" ? "bookmarks" : "clips"
-  ].findFirst({
-    where: and(eq(table.id, markId), eq(table.userId, userId)),
-  })
+  const owned =
+    markType === "bookmark"
+      ? await db.query.bookmarks.findFirst({
+          where: and(eq(bookmarks.id, markId), eq(bookmarks.userId, userId)),
+        })
+      : await db.query.clips.findFirst({
+          where: and(eq(clips.id, markId), eq(clips.userId, userId)),
+        })
   if (!owned) {
     throw new TRPCError({ code: "NOT_FOUND", message: "Mark not found" })
   }
