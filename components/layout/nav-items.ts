@@ -12,11 +12,11 @@ import {
 // Shared between the header's mobile sheet and the feed's desktop sidebar so
 // the two navigations never drift.
 export const navLinks = [
-  { href: "/", label: "Watch", icon: MonitorPlayIcon },
-  { href: "/files", label: "Search", icon: MagnifyingGlassIcon },
-  { href: "/library", label: "Library", icon: BookmarkSimpleIcon },
+  { href: "/", label: "Search", icon: MagnifyingGlassIcon },
+  { href: "/watch", label: "Watch", icon: MonitorPlayIcon },
   { href: "/globe", label: "Incident Map", icon: GlobeHemisphereWest },
   { href: "/releases", label: "Releases", icon: DownloadSimple },
+  { href: "/library", label: "Library", icon: BookmarkSimpleIcon },
   { href: "/changelog", label: "Changelog", icon: ClockCounterClockwise },
 ]
 
