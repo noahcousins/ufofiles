@@ -4,17 +4,16 @@ import { cacheKey, withCache } from "@/lib/cache"
 import { db } from "@/lib/db"
 import { bookmarks, collectionMarks } from "@/lib/db/schema"
 import { router } from "../init"
-import { protectedProcedure } from "../procedures"
+import { memberProcedure, protectedProcedure } from "../procedures"
 import { rateLimitedProcedure } from "../rateLimit"
 
 const COUNTS_TTL = 60
 
 export const bookmarksRouter = router({
-  // Creating the first mark is what turns a visitor into a Guest — the client
-  // signs in anonymously before calling this, so a session always exists here.
-  // No resource key: the rate limit is a global per-user (and per-IP for
-  // Guests) write cap, not a per-file one.
-  create: protectedProcedure("mutation")
+  // Member-gated (verified account): bookmarking is blocked behind email
+  // verification, same as clipping. No resource key — the rate limit is a global
+  // per-user write cap, not per-file.
+  create: memberProcedure("mutation")
     .input(
       z.object({
         fileId: z.number().int().positive(),
@@ -47,7 +46,7 @@ export const bookmarksRouter = router({
       return row
     }),
 
-  remove: protectedProcedure("mutation")
+  remove: memberProcedure("mutation")
     .input(z.object({ fileId: z.number().int().positive() }))
     .mutation(async ({ input, ctx }) => {
       const deleted = await db

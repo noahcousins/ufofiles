@@ -4,6 +4,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3"
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import { parseBucketPrefix } from "./r2-paths"
 
 const r2 = new S3Client({
@@ -163,4 +164,76 @@ export async function getFile(key: string, range?: string) {
     contentRange: response.ContentRange,
     lastModified: response.LastModified?.toISOString() ?? "",
   }
+}
+
+// --- Clip renders (ADR-0002) -------------------------------------------------
+// Rendered clips live in a dedicated PRIVATE bucket. Unlike source/assets they
+// are never served by the public Worker — delivery is via short-lived presigned
+// URLs only. R2 caps presigned-URL expiry at 7 days (604800s).
+
+const CLIPS_BUCKET = process.env.R2_CLIPS_BUCKET_NAME
+
+function clipsBucket(): string {
+  if (!CLIPS_BUCKET) {
+    throw new Error(
+      "R2_CLIPS_BUCKET_NAME is not set — cannot store clip renders"
+    )
+  }
+  return CLIPS_BUCKET
+}
+
+/** Upload a rendered clip MP4 to the private clips bucket. */
+export async function putClipRender(
+  objectKey: string,
+  body: Buffer
+): Promise<void> {
+  await r2.send(
+    new PutObjectCommand({
+      Bucket: clipsBucket(),
+      Key: objectKey,
+      Body: body,
+      ContentType: "video/mp4",
+    })
+  )
+}
+
+/**
+ * Presigned GET URL for a rendered clip. Pass `downloadAs` to sign in a
+ * `Content-Disposition: attachment` so the browser force-downloads with that
+ * filename — the HTML `download` attribute is ignored on cross-origin R2 URLs,
+ * so this is the only way to make Download actually save instead of open.
+ * Omit it for inline playback (the `<video>` src).
+ */
+export function getClipDownloadUrl(
+  objectKey: string,
+  expiresInSeconds: number,
+  downloadAs?: string
+): Promise<string> {
+  return getSignedUrl(
+    r2,
+    new GetObjectCommand({
+      Bucket: clipsBucket(),
+      Key: objectKey,
+      ...(downloadAs && {
+        ResponseContentDisposition: `attachment; filename="${downloadAs}"`,
+      }),
+    }),
+    { expiresIn: expiresInSeconds }
+  )
+}
+
+/**
+ * Presigned GET URL for a SOURCE file, so the trigger.dev render task can hand
+ * ffmpeg an HTTP input instead of streaming the whole MP4 through the job.
+ */
+export function getSourceDownloadUrl(
+  r2Key: string,
+  expiresInSeconds: number
+): Promise<string> {
+  const { bucket, objectKey } = resolveBucket(r2Key)
+  return getSignedUrl(
+    r2,
+    new GetObjectCommand({ Bucket: bucket, Key: objectKey }),
+    { expiresIn: expiresInSeconds }
+  )
 }
