@@ -1,1 +1,9 @@
 minimumReleaseAge: 0
+
+onlyBuiltDependencies:
+  - sharp
+  - esbuild
+  - workerd
+  - protobufjs
+  - core-js
+  - "@google/genai"
