@@ -18,6 +18,11 @@ export function VideoFeed() {
   const [activeIndex, setActiveIndex] = useState(0)
   const [muted, setMuted] = useState(true)
   const [hasInteracted, setHasInteracted] = useState(false)
+  // While a clip is being edited the feed is frozen — no scroll-snap, no
+  // swipe/keyboard navigation — so handle drags can't snap away the editor.
+  const [clipEditing, setClipEditing] = useState(false)
+  const clipEditingRef = useRef(false)
+  clipEditingRef.current = clipEditing
   const [debugHud] = useState(
     () =>
       typeof window !== "undefined" &&
@@ -96,7 +101,7 @@ export function VideoFeed() {
       }
     )
 
-  // A share link (`/feed?v=<id>`) pins that video to the front, then the rest
+  // A share link (`/watch?v=<id>`) pins that video to the front, then the rest
   // of the feed randomizes from there.
   const searchParams = useSearchParams()
   const pinnedId = Number(searchParams.get("v")) || null
@@ -219,7 +224,7 @@ export function VideoFeed() {
     }
 
     const onTouchEnd = (e: TouchEvent) => {
-      if (startY === null || fromControls) {
+      if (startY === null || fromControls || clipEditingRef.current) {
         return
       }
       const dy = (e.changedTouches[0]?.clientY ?? startY) - startY
@@ -346,7 +351,8 @@ export function VideoFeed() {
     function handleKeyDown(e: KeyboardEvent) {
       if (
         e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement
+        e.target instanceof HTMLTextAreaElement ||
+        clipEditingRef.current
       ) {
         return
       }
@@ -392,7 +398,11 @@ export function VideoFeed() {
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto overscroll-y-contain bg-black [scroll-snap-type:y_mandatory]"
+      className={
+        clipEditing
+          ? "fixed inset-0 z-50 overflow-hidden bg-black"
+          : "fixed inset-0 z-50 overflow-y-auto overscroll-y-contain bg-black [scroll-snap-type:y_mandatory]"
+      }
       ref={containerRef}
     >
       {/* Desktop-only ambient backdrop. Hidden on mobile, where the column is
@@ -448,6 +458,7 @@ export function VideoFeed() {
                   muted={muted}
                   onAdvance={() => scrollToIndex(index + 1)}
                   onAutoplayMuted={handleAutoplayMuted}
+                  onClipEditingChange={setClipEditing}
                   onInteract={handleInteract}
                   onMuteToggle={() => setMuted((m) => !m)}
                   registerRef={registerPanel}

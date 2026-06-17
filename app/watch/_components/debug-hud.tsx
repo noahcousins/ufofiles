@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 
 // Temporary diagnostic overlay for the iOS autoplay bug. Enabled by adding
-// ?feeddebug=1 to /feed. Logs every play() call (with user-activation state),
+// ?feeddebug=1 to /watch. Logs every play() call (with user-activation state),
 // every rejection (with error name), and live stats for the active video.
 // Remove once the device bug is confirmed fixed.
 

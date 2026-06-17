@@ -2,6 +2,13 @@
 
 import posthog from "posthog-js"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useAuthDialog } from "@/components/auth/auth-dialog-provider"
+import { useRequireVerified } from "@/components/auth/email-verification-provider"
+import { type ClipDraft, ClipEditor } from "@/components/clips/clip-editor"
+import { pushClipProgress } from "@/components/clips/clip-progress"
+import { toast } from "@/components/ui/toast"
+import { useSession } from "@/lib/auth/session-provider"
+import { writePendingClip } from "@/lib/clips/pending-clip"
 import { getHlsPlaylistUrl, getVideoThumbUrl } from "@/lib/file-url"
 import { trpc } from "@/lib/trpc/client"
 import type { LoadState } from "./preload-window"
@@ -9,6 +16,8 @@ import { useHlsPlayer } from "./use-hls-player"
 import { VideoActions } from "./video-actions"
 import { VideoControls } from "./video-controls"
 import { VideoMetadata } from "./video-metadata"
+
+const DEFAULT_CLIP_SECONDS = 15
 
 export interface VideoMoment {
   description: string
@@ -42,6 +51,7 @@ interface VideoPanelProps {
   muted: boolean
   onAdvance: () => void
   onAutoplayMuted: () => void
+  onClipEditingChange: (editing: boolean) => void
   onInteract: () => void
   onMuteToggle: () => void
   registerRef: (index: number, el: HTMLDivElement | null) => void
@@ -58,6 +68,7 @@ export function VideoPanel({
   muted,
   onAdvance,
   onAutoplayMuted,
+  onClipEditingChange,
   onInteract,
   onMuteToggle,
   registerRef,
@@ -69,6 +80,22 @@ export function VideoPanel({
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [showUnmute, setShowUnmute] = useState(false)
+
+  // --- Clip mode (ADR-0002 / ADR-0003) ---
+  const { data: session } = useSession()
+  const openAuth = useAuthDialog()
+  const requireVerified = useRequireVerified()
+  const createClip = trpc.clips.create.useMutation()
+  const utils = trpc.useUtils()
+  const [clipMode, setClipMode] = useState(false)
+  const [clipDraft, setClipDraft] = useState<ClipDraft | null>(null)
+  // Read by the once-attached media listeners below to enforce the loop and
+  // suppress auto-advance while editing.
+  const clipModeRef = useRef(false)
+  clipModeRef.current = clipMode
+  const clipDraftRef = useRef<ClipDraft | null>(null)
+  clipDraftRef.current = clipDraft
+
   const viewRecorded = useRef(false)
   const isActiveRef = useRef(isActive)
   isActiveRef.current = isActive
@@ -106,10 +133,24 @@ export function VideoPanel({
     const onPlay = () => setPlaying(true)
     const onPause = () => setPlaying(false)
     const onEnded = () => {
+      // In clip mode, looping owns the end of the timeline — never advance.
+      const d = clipDraftRef.current
+      if (clipModeRef.current && d) {
+        el.currentTime = d.start
+        el.play().catch(() => undefined)
+        return
+      }
       setPlaying(false)
       onAdvanceRef.current()
     }
-    const onTimeUpdate = () => setCurrentTime(el.currentTime)
+    const onTimeUpdate = () => {
+      // Loop within the draft bounds while editing.
+      const d = clipDraftRef.current
+      if (clipModeRef.current && d && el.currentTime >= d.end) {
+        el.currentTime = d.start
+      }
+      setCurrentTime(el.currentTime)
+    }
     const onLoadedMetadata = () => setDuration(el.duration)
     el.addEventListener("play", onPlay)
     el.addEventListener("pause", onPause)
@@ -192,7 +233,12 @@ export function VideoPanel({
 
   const tryPlay = useCallback(() => {
     const v = videoRef.current
-    if (!(v && isActiveRef.current && hasInteractedRef.current)) {
+    // Clip mode drives playback itself (loop within bounds) — keep the feed's
+    // autoplay from hijacking it.
+    if (
+      !(v && isActiveRef.current && hasInteractedRef.current) ||
+      clipModeRef.current
+    ) {
       return
     }
 
@@ -327,6 +373,121 @@ export function VideoPanel({
     setTooltipText(text)
   }, [])
 
+  // Enter clip mode: seed bounds at the playhead (+15s), or copy a Moment's
+  // bounds if the playhead sits inside one. Pause and park at the in-point.
+  const enterClipMode = useCallback(() => {
+    const v = videoRef.current
+    if (!v || duration <= 0) {
+      return
+    }
+    const now = v.currentTime
+    let start = now
+    // If the playhead sits inside a Moment, start from the Moment's in-point;
+    // otherwise from the playhead. Either way the seed is a short default
+    // window the user widens from — never the Moment's full (possibly minutes-
+    // long) span.
+    const moment = item.moments.find(
+      (m) =>
+        m.endSeconds != null && now >= m.startSeconds && now <= m.endSeconds
+    )
+    if (moment) {
+      start = moment.startSeconds
+    }
+    start = Math.max(0, start)
+    let end = Math.min(start + DEFAULT_CLIP_SECONDS, duration)
+    end = Math.max(end, start + 1)
+    v.pause()
+    v.currentTime = start
+    setClipDraft({ start, end })
+    setClipMode(true)
+    onClipEditingChange(true)
+  }, [duration, item.moments, onClipEditingChange])
+
+  const exitClipMode = useCallback(() => {
+    setClipMode(false)
+    setClipDraft(null)
+    onClipEditingChange(false)
+  }, [onClipEditingChange])
+
+  // Preview-seek to a handle's frame while dragging.
+  const handleClipScrub = useCallback((seconds: number) => {
+    const v = videoRef.current
+    if (v) {
+      v.currentTime = seconds
+    }
+  }, [])
+
+  const clipTogglePlay = useCallback(() => {
+    const v = videoRef.current
+    const d = clipDraftRef.current
+    if (!(v && d)) {
+      return
+    }
+    if (v.paused) {
+      if (v.currentTime < d.start || v.currentTime >= d.end) {
+        v.currentTime = d.start
+      }
+      v.play().catch(() => undefined)
+    } else {
+      v.pause()
+    }
+  }, [])
+
+  const handleClipCommit = useCallback(() => {
+    const d = clipDraftRef.current
+    if (!d) {
+      return
+    }
+    const startSeconds = Math.max(0, Math.floor(d.start))
+    const endSeconds = Math.min(Math.round(duration), Math.ceil(d.end))
+    if (endSeconds <= startSeconds) {
+      return
+    }
+    // Signed-out → park the draft and throw the auth modal (taste-then-convert,
+    // ADR-0003). The global replay commits it once they sign up AND verify.
+    if (!session?.user) {
+      writePendingClip({ fileId: item.id, startSeconds, endSeconds })
+      exitClipMode()
+      openAuth("signup")
+      return
+    }
+    const runCreate = () =>
+      createClip.mutate(
+        { fileId: item.id, startSeconds, endSeconds },
+        {
+          onSuccess: (clip) => {
+            utils.invalidate()
+            posthog.capture("feed_clip_added", { file_id: item.id })
+            if (clip) {
+              pushClipProgress({
+                clipId: clip.id,
+                fileId: clip.fileId,
+                startSeconds: clip.startSeconds,
+                endSeconds: clip.endSeconds,
+                title: item.title,
+              })
+            }
+            exitClipMode()
+          },
+          onError: (e) => toast(e.message || "Couldn't add clip"),
+        }
+      )
+
+    // Verified → creates now; signed-in-but-unverified → pops the verify modal
+    // and creates on success (the editor stays open behind it).
+    requireVerified(runCreate)
+  }, [
+    duration,
+    session,
+    item.id,
+    item.title,
+    createClip,
+    utils,
+    exitClipMode,
+    openAuth,
+    requireVerified,
+  ])
+
   const refCallback = useCallback(
     (el: HTMLDivElement | null) => {
       registerRef(index, el)
@@ -380,27 +541,46 @@ export function VideoPanel({
         }}
       />
 
-      <VideoControls
-        currentTime={currentTime}
-        duration={duration}
-        moments={item.moments}
-        muted={muted}
-        onExpandChange={handleExpandChange}
-        onMuteToggle={handleMuteToggle}
-        onSeek={handleSeek}
-        onTogglePlay={togglePlay}
-        onTooltipChange={handleTooltipChange}
-        playing={playing}
-        showUnmute={showUnmute}
-      />
+      {clipMode && clipDraft ? (
+        // Takeover mode: the editor replaces the normal timeline + chrome.
+        <ClipEditor
+          currentTime={currentTime}
+          draft={clipDraft}
+          duration={duration}
+          moments={item.moments}
+          onCancel={exitClipMode}
+          onChange={setClipDraft}
+          onCommit={handleClipCommit}
+          onScrub={handleClipScrub}
+          onTogglePlay={clipTogglePlay}
+          playing={playing}
+          submitting={createClip.isPending}
+        />
+      ) : (
+        <>
+          <VideoControls
+            currentTime={currentTime}
+            duration={duration}
+            moments={item.moments}
+            muted={muted}
+            onExpandChange={handleExpandChange}
+            onMuteToggle={handleMuteToggle}
+            onSeek={handleSeek}
+            onTogglePlay={togglePlay}
+            onTooltipChange={handleTooltipChange}
+            playing={playing}
+            showUnmute={showUnmute}
+          />
 
-      <VideoActions item={item} />
+          <VideoActions item={item} onStartClip={enterClipMode} />
 
-      <VideoMetadata
-        item={item}
-        scrubbing={scrubbing}
-        tooltipText={tooltipText}
-      />
+          <VideoMetadata
+            item={item}
+            scrubbing={scrubbing}
+            tooltipText={tooltipText}
+          />
+        </>
+      )}
     </div>
   )
 }

@@ -2,7 +2,7 @@
 
 import { Hash } from "@phosphor-icons/react"
 import { AnimatePresence, motion } from "motion/react"
-import { AgencySeal } from "@/app/files/file-filters"
+import { AgencySeal } from "@/components/files/file-filters"
 import type { FeedItem } from "./video-panel"
 
 interface VideoMetadataProps {
