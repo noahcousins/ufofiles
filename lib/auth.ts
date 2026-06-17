@@ -45,6 +45,11 @@ const captchaPlugins =
             "/sign-up/email",
             "/sign-in/email",
             "/sign-in/magic-link",
+            // Email-send endpoints: gate the manual resend / reset-request too,
+            // so the Resend-cost abuse path isn't captcha-free (the initial OTP
+            // send rides /sign-up/email, already covered above).
+            "/email-otp/send-verification-otp",
+            "/request-password-reset",
           ],
         }),
       ]
