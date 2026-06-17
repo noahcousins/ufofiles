@@ -2,10 +2,9 @@ import type { Metadata, Viewport } from "next"
 import { Geist, JetBrains_Mono } from "next/font/google"
 
 import "./globals.css"
-import { NuqsAdapter } from "nuqs/adapters/next/app"
+import { AppProviders } from "@/components/app-providers"
 import { SiteFooter } from "@/components/site-footer"
-import { ThemeProvider } from "@/components/theme-provider"
-import { TRPCProvider } from "@/lib/trpc/provider"
+import { getSession } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
@@ -45,11 +44,15 @@ export const metadata: Metadata = {
   ],
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Read the session once, server-side, and seed the client store so the auth
+  // UI renders correctly on first paint — no flash from a client-side fetch.
+  const session = await getSession()
+
   return (
     <html
       className={cn(
@@ -62,16 +65,12 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body>
-        <NuqsAdapter>
-          <TRPCProvider>
-            <ThemeProvider defaultTheme="dark">
-              <div className="flex min-h-svh flex-col">
-                <div className="flex-1">{children}</div>
-                <SiteFooter />
-              </div>
-            </ThemeProvider>
-          </TRPCProvider>
-        </NuqsAdapter>
+        <AppProviders initialSession={session}>
+          <div className="flex min-h-svh flex-col">
+            <div className="flex-1">{children}</div>
+            <SiteFooter />
+          </div>
+        </AppProviders>
       </body>
     </html>
   )
