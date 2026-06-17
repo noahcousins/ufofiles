@@ -29,15 +29,16 @@ The historical event a File documents — its date and location.
 ### Identity
 
 **User**:
-An identity that owns Bookmarks, Clips, and Exports. Every User is either a Guest or a Member.
-
-**Guest**:
-A User created silently on a visitor's first mark, bound to one device/browser. Guests can mark but cannot Export.
-_Avoid_: Anonymous user (implementation term), visitor (a visitor who has marked nothing is not a User)
+A signed-in account (email/password, magic-link, or Google) that owns Bookmarks, Clips, and Exports. **There are no anonymous users** — every mark requires signing in via the auth modal.
+_Avoid_: Guest / anonymous user (removed — see ADR-0003), visitor (a visitor who hasn't signed in is not a User)
 
 **Member**:
-A User with sign-in credentials, reachable across devices. Upgrading turns a Guest into a Member (or links the Guest's marks into an existing Member). Linking merges marks as a union: duplicate Bookmarks on the same File collapse; Clips collapse only when their bounds are identical. Collections transfer as-is (names need not be unique), and when a duplicate mark collapses, the surviving mark inherits its Collection memberships.
+A User whose email is **verified** — the only kind that can Clip or Export. Magic-link and Google sign-ins arrive verified; an email/password sign-up must verify first. A signed-in but unverified User can still Bookmark.
 _Avoid_: Account (the credential is not the identity), registered user
+
+**Email verification vs validation** (distinct — don't conflate):
+- **Verification** proves the User *owns* the address (the OTP / magic-link). It's what makes a Member.
+- **Validation** proves the address is *worth sending to* — deliverable (not a typo'd/dead domain) and not disposable. It runs at sign-up *before* a User exists, as a gate on the email-bearing auth endpoints (see ADR-0004). It does not prove ownership and does not make a Member.
 
 ### Marking
 
@@ -46,7 +47,7 @@ A user's mark on a whole File, of any type. Belongs to exactly one User and refe
 _Avoid_: Favorite, save (in the feed UI "Save" means download), like
 
 **Clip**:
-A user-defined time range within a video File, owned by the User who created it. A Moment can be added as a Clip in one tap (its bounds are copied), but the Clip remains independently adjustable and is not linked to the Moment afterward.
+A user-defined time range within a video File, owned by the User who created it. **Creating a Clip requires a verified Member** — a Bookmark only needs a signed-in account, but a Clip needs a verified one. **A Clip's bounds are fixed once created** — there is no re-trimming; to change a range you make a new Clip. A Moment can be added as a Clip in one tap (its bounds are copied as the starting selection, adjustable in the editor before saving), but the resulting Clip is not linked to the Moment.
 _Avoid_: Moment (curated, archive-authored), segment, highlight
 
 **Library**:
@@ -58,13 +59,14 @@ A named set of marks within a User's Library. A Collection references marks rath
 _Avoid_: Folder (implies containment), playlist, album
 
 **Export**:
-A user-requested compilation of marks into downloadable artifacts, produced asynchronously. The marks are chosen ad hoc or by picking a Collection; either way the Export snapshots them at request time and never changes afterward. An Export has a lifecycle (pending → processing → ready / failed) and, once ready, yields links to its artifacts. Clips are rendered into real video files at export time; a Clip with unchanged bounds is rendered once and reused.
+A user-requested compilation of marks into downloadable artifacts, produced asynchronously. The marks are chosen ad hoc or by picking a Collection; either way the Export snapshots them at request time and never changes afterward. An Export has a lifecycle (pending → processing → ready / failed) and, once ready, yields links to its artifacts — including each Clip as a real cut video file. (When and how a Clip becomes a rendered file is an implementation concern — see ADR-0002.)
 _Avoid_: Download (downloading a single File is a different act), backup
 
 ## Flagged ambiguities
 
 - **"Save" vs Bookmark**: The feed's action overlay uses "Save" to mean *download the file to the device*. Bookmarking is a different act (marking for later within the app). Never use "save" for bookmarking.
 - **Moment vs Clip**: Moments are archive-curated; Clips are user-authored. A user "saving a moment" is creating a Clip whose bounds happen to come from a Moment.
+- **Bookmark vs Clip gating**: both are marks and both require signing in (the auth modal — there are no anonymous marks). Bookmarking needs only a signed-in account; Clipping additionally needs a *verified* Member. Don't assume "a signed-in User can mark" means "can do both."
 
 ## Example dialogue
 
