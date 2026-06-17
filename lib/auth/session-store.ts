@@ -1,13 +1,18 @@
 "use client"
 
 import { createStore } from "zustand/vanilla"
-// Type-only import — fully erased at build time, so this never pulls the
-// server-only `auth` (drizzle, env, …) into the client bundle.
-import type { auth } from "@/lib/auth"
 import { authClient } from "@/lib/auth-client"
+import {
+  type ClientSession,
+  type FullSession,
+  toClientSession,
+} from "./client-session"
 
-/** The `{ session, user }` shape better-auth returns from `getSession`. */
-export type AppSession = typeof auth.$Infer.Session
+/**
+ * The client-safe session shape (no token / ip / userAgent — see
+ * `client-session.ts`). Named `AppSession` for back-compat with consumers.
+ */
+export type AppSession = ClientSession
 
 export interface SessionState {
   /** True only while an in-place refetch is in flight (sign-in flows reload). */
@@ -37,7 +42,8 @@ export function createSessionStore(initialSession: AppSession | null) {
     refetch: async () => {
       set({ isPending: true })
       const { data } = await authClient.getSession()
-      const session = (data as AppSession | null) ?? null
+      // Narrow to the client-safe shape so the token never lands in the store.
+      const session = toClientSession((data as FullSession | null) ?? null)
       set({ session, isPending: false })
       return session
     },

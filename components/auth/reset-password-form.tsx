@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import posthog from "posthog-js"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
@@ -29,6 +29,18 @@ export function ResetPasswordForm({
   const [done, setDone] = useState(false)
 
   const invalid = tokenError || !token
+
+  // Drop ?token / ?error from the address bar once we've captured them (as
+  // props, server-side). Keeps the token out of browser history and any later
+  // $current_url analytics capture; the form still holds the token to submit.
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (url.searchParams.has("token") || url.searchParams.has("error")) {
+      url.searchParams.delete("token")
+      url.searchParams.delete("error")
+      window.history.replaceState(null, "", url.pathname + url.search)
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

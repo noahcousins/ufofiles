@@ -5,6 +5,7 @@ import "./globals.css"
 import { AppProviders } from "@/components/app-providers"
 import { SiteFooter } from "@/components/site-footer"
 import { getSession } from "@/lib/auth"
+import { toClientSession } from "@/lib/auth/client-session"
 import { cn } from "@/lib/utils"
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
@@ -51,7 +52,9 @@ export default async function RootLayout({
 }>) {
   // Read the session once, server-side, and seed the client store so the auth
   // UI renders correctly on first paint — no flash from a client-side fetch.
-  const session = await getSession()
+  // Narrow to the client-safe shape so the session token is never serialized
+  // into the page HTML.
+  const session = toClientSession(await getSession())
 
   return (
     <html
