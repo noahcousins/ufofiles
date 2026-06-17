@@ -10,7 +10,7 @@
     "lint": "biome check .",
     "format": "biome check --fix .",
     "check": "tsc --noEmit",
-    "clean": "rimraf node_modules pnpm-lock.yaml dist .turbo .cache .pnpm-store && pnpm -r exec rimraf node_modules dist .turbo .next .cache",
+    "clean": "rimraf .next dist .turbo .cache node_modules pnpm-lock.yaml .pnpm-store && pnpm -r exec rimraf node_modules dist .turbo .next .cache",
     "clean:deep": "pnpm store prune && pnpm run clean",
     "email:dev": "email dev --dir emails --port 3030",
     "db:push": "drizzle-kit push",
