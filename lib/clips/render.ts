@@ -1,5 +1,5 @@
 import { tasks } from "@trigger.dev/sdk/v3"
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { clipRenders } from "@/lib/db/schema"
 import type { renderClipTask } from "@/trigger/render-clip"
@@ -11,22 +11,66 @@ interface Bounds {
 }
 
 /**
- * Ensure a render exists for these exact bounds and enqueue it if it's new.
+ * Enqueue a render.dev task for `renderId` and record the run id. On a retry we
+ * deliberately omit the idempotency key: the content-key idempotency guard is
+ * only there to collapse racing *fresh* inserts — a retry is an explicit
+ * decision to start a new run, and reusing the key would just hand back the
+ * dead/never-started run. The per-User concurrency key still bounds abuse.
+ */
+async function triggerRender(
+  renderId: number,
+  bounds: Bounds,
+  triggeredByUserId: string,
+  { idempotent }: { idempotent: boolean }
+): Promise<void> {
+  try {
+    const handle = await tasks.trigger<typeof renderClipTask>(
+      "render-clip",
+      { clipRenderId: renderId, ...bounds },
+      {
+        ...(idempotent
+          ? {
+              idempotencyKey: `clip-render:${bounds.fileId}:${bounds.startSeconds}:${bounds.endSeconds}`,
+            }
+          : {}),
+        // Per-User fairness: caps how many renders one User can have running.
+        concurrencyKey: triggeredByUserId,
+      }
+    )
+    await db
+      .update(clipRenders)
+      .set({
+        triggerRunId: handle.id,
+        status: "pending",
+        error: null,
+        updatedAt: new Date(),
+      })
+      .where(eq(clipRenders.id, renderId))
+  } catch (err) {
+    // Leave the row pending for a later retry; never block the clip write.
+    console.error("[clips] failed to enqueue render", renderId, err)
+  }
+}
+
+/**
+ * Ensure a render exists for these exact bounds and that it has a live run.
  *
- * The `onConflictDoNothing` on the content-key index is the whole dedupe story:
- * a fresh insert means nobody has ever asked for these bounds → enqueue once; a
- * conflict means it's already rendered or in-flight → no-op. Safe to call on
- * every clip create/edit.
+ * - Fresh insert (nobody has asked for these bounds) → enqueue once, using the
+ *   content-key idempotency guard against racing inserts.
+ * - Existing row with no live run → re-enqueue (the genuine "backfill"): a
+ *   `failed` render, or a `pending` row whose enqueue never landed
+ *   (`triggerRunId` is null, e.g. trigger.dev was unconfigured or threw).
+ * - Existing row that's already `ready`/`processing`, or `pending` with a run
+ *   in flight → no-op.
  *
- * Enqueue failures (e.g. trigger.dev not yet configured) are swallowed: the
- * `clip_renders` row stays `pending` so the clip create still succeeds and the
- * render can be backfilled later. Mirrors how Redis degrades gracefully.
+ * Safe (and cheap) to call on every clip create and on download/export reads,
+ * which is what makes `getDownloadUrls`/`activeRenders` self-heal.
  */
 export async function ensureClipRender(
   bounds: Bounds,
   triggeredByUserId: string
 ): Promise<void> {
-  const [row] = await db
+  const [inserted] = await db
     .insert(clipRenders)
     .values(bounds)
     .onConflictDoNothing({
@@ -38,29 +82,41 @@ export async function ensureClipRender(
     })
     .returning({ id: clipRenders.id })
 
-  // Conflict → already rendered or queued by someone else. Nothing to do.
-  if (!row) {
+  if (inserted) {
+    await triggerRender(inserted.id, bounds, triggeredByUserId, {
+      idempotent: true,
+    })
     return
   }
 
-  try {
-    const handle = await tasks.trigger<typeof renderClipTask>(
-      "render-clip",
-      { clipRenderId: row.id, ...bounds },
-      {
-        // Idempotency guard on top of the DB unique index, in case two inserts
-        // race past onConflictDoNothing in separate connections.
-        idempotencyKey: `clip-render:${bounds.fileId}:${bounds.startSeconds}:${bounds.endSeconds}`,
-        // Per-User fairness: caps how many renders one User can have running.
-        concurrencyKey: triggeredByUserId,
-      }
+  // Conflict → a row already exists. Re-enqueue only if it has no live run.
+  const [existing] = await db
+    .select({
+      id: clipRenders.id,
+      status: clipRenders.status,
+      triggerRunId: clipRenders.triggerRunId,
+    })
+    .from(clipRenders)
+    .where(
+      and(
+        eq(clipRenders.fileId, bounds.fileId),
+        eq(clipRenders.startSeconds, bounds.startSeconds),
+        eq(clipRenders.endSeconds, bounds.endSeconds)
+      )
     )
-    await db
-      .update(clipRenders)
-      .set({ triggerRunId: handle.id, updatedAt: new Date() })
-      .where(eq(clipRenders.id, row.id))
-  } catch (err) {
-    // Leave the row pending for backfill; never block the clip write.
-    console.error("[clips] failed to enqueue render", row.id, err)
+    .limit(1)
+
+  if (!existing) {
+    return
+  }
+
+  const hasNoLiveRun =
+    existing.status === "failed" ||
+    (existing.status === "pending" && existing.triggerRunId === null)
+
+  if (hasNoLiveRun) {
+    await triggerRender(existing.id, bounds, triggeredByUserId, {
+      idempotent: false,
+    })
   }
 }

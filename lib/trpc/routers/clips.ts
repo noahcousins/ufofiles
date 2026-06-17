@@ -43,6 +43,12 @@ export const clipsRouter = router({
     .mutation(async ({ input, ctx }) => {
       // Per-User cap (ADR-0002). Re-adding an exact-bounds Clip is idempotent
       // and must still succeed at the limit, so only block genuinely new ones.
+      // NOTE: this read-then-insert is deliberately non-atomic. A concurrent
+      // race can let a User slip a few clips past the cap, but that's an
+      // accepted soft guardrail — the real cost bound is content-keyed render
+      // dedup + the per-User render concurrency key + 60s max + no-delete
+      // (ADR-0002), which hold regardless of a small cap overage. Not worth a
+      // transaction on the hot create path.
       const [{ value: clipCount }] = await db
         .select({ value: count() })
         .from(clips)
