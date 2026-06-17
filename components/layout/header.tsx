@@ -3,19 +3,14 @@
 import {
   ArrowRightIcon,
   MagnifyingGlassIcon,
-  SignInIcon,
-  SignOutIcon,
-  UserCircleIcon,
 } from "@phosphor-icons/react/dist/ssr"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
-import { AuthDialog } from "@/components/auth/auth-dialog"
+import { AuthButtons } from "@/components/auth/auth-buttons"
 import { MobileNav } from "@/components/layout/mobile-nav"
 import { navLinks, socialLinks } from "@/components/layout/nav-items"
 import { Button } from "@/components/ui/button"
 import { Logo } from "@/components/ui/logo"
-import { isMember, signOut, useSession } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 
 interface HeaderProps {
@@ -34,15 +29,7 @@ export function Header({
   onMobileSearchToggle,
 }: HeaderProps) {
   const pathname = usePathname()
-  const [authOpen, setAuthOpen] = useState(false)
-  const isMainPage = pathname === "/files"
-
-  const { data: session } = useSession()
-  const member = isMember(session?.user)
-
-  const handleSignOut = () => {
-    signOut()
-  }
+  const isMainPage = pathname === "/"
 
   return (
     <header className="sticky top-0 z-40 border-border/40 border-b bg-background">
@@ -51,7 +38,7 @@ export function Header({
           <Logo className="h-3.5" />
           {newReleaseName && (
             <Link
-              href={`/files?release=${encodeURIComponent(newReleaseName)}`}
+              href={`/?release=${encodeURIComponent(newReleaseName)}`}
               onClick={onNewReleaseClick}
             >
               <Button size="xs" variant="default">
@@ -92,39 +79,7 @@ export function Header({
             </Link>
           ))}
 
-          <span className="mx-1.5 h-4 w-px shrink-0 self-center bg-border/60" />
-
-          {member ? (
-            <>
-              <Link
-                aria-label="Library"
-                className={cn(
-                  "inline-flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground",
-                  pathname === "/library" && "text-foreground"
-                )}
-                href="/library"
-              >
-                <UserCircleIcon className="size-4" weight="fill" />
-              </Link>
-              <button
-                aria-label="Sign out"
-                className="inline-flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-                onClick={handleSignOut}
-                type="button"
-              >
-                <SignOutIcon className="size-4" />
-              </button>
-            </>
-          ) : (
-            <Button
-              onClick={() => setAuthOpen(true)}
-              size="sm"
-              variant="default"
-            >
-              <SignInIcon className="size-4" />
-              Sign in
-            </Button>
-          )}
+          <AuthButtons variant="header" />
         </div>
 
         <div className="flex items-center gap-1 lg:hidden">
@@ -144,7 +99,7 @@ export function Header({
             <Link
               aria-label="Search files"
               className="inline-flex size-8 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-              href="/files?searchOpen=1"
+              href="/?searchOpen=1"
             >
               <MagnifyingGlassIcon className="size-5" />
             </Link>
@@ -154,8 +109,6 @@ export function Header({
         </div>
       </div>
       {children}
-
-      <AuthDialog onOpenChange={setAuthOpen} open={authOpen} />
     </header>
   )
 }
