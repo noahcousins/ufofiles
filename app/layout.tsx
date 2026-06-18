@@ -1,11 +1,13 @@
 import type { Metadata, Viewport } from "next"
 import { Geist, JetBrains_Mono } from "next/font/google"
+import { headers } from "next/headers"
 
 import "./globals.css"
 import { AppProviders } from "@/components/app-providers"
 import { SiteFooter } from "@/components/site-footer"
 import { getSession } from "@/lib/auth"
 import { toClientSession } from "@/lib/auth/client-session"
+import { countryFromHeaders, isConsentRequiredCountry } from "@/lib/consent/geo"
 import { cn } from "@/lib/utils"
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
@@ -56,6 +58,10 @@ export default async function RootLayout({
   // into the page HTML.
   const session = toClientSession(await getSession())
 
+  const consentRequired = isConsentRequiredCountry(
+    countryFromHeaders(await headers())
+  )
+
   return (
     <html
       className={cn(
@@ -68,10 +74,13 @@ export default async function RootLayout({
       suppressHydrationWarning
     >
       <body>
-        <AppProviders initialSession={session}>
+        <AppProviders
+          consentRequired={consentRequired}
+          initialSession={session}
+        >
           <div className="flex min-h-svh flex-col">
             <div className="flex-1">{children}</div>
-            <SiteFooter />
+            <SiteFooter consentRequired={consentRequired} />
           </div>
         </AppProviders>
       </body>

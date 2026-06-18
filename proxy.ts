@@ -1,5 +1,10 @@
 import { getSessionCookie } from "better-auth/cookies"
 import { type NextRequest, NextResponse } from "next/server"
+import {
+  CONSENT_REQUIRED_COOKIE,
+  countryFromHeaders,
+  isConsentRequiredCountry,
+} from "@/lib/consent/geo"
 
 const BOT_PATTERNS = [
   "Twitterbot",
@@ -26,15 +31,18 @@ function isProtected(pathname: string): boolean {
   )
 }
 
+function stampConsentRegion(request: NextRequest, response: NextResponse) {
+  const required = isConsentRequiredCountry(countryFromHeaders(request.headers))
+  response.cookies.set(CONSENT_REQUIRED_COOKIE, required ? "1" : "0", {
+    path: "/",
+    sameSite: "lax",
+    maxAge: 60 * 60 * 24,
+  })
+}
+
 export function proxy(request: NextRequest) {
   const { nextUrl } = request
   const ua = request.headers.get("user-agent") ?? ""
-
-  if (isBot(ua) && nextUrl.searchParams.has("fileId")) {
-    const response = NextResponse.next()
-    response.headers.set("x-middleware-cache", "no-cache")
-    return response
-  }
 
   if (isProtected(nextUrl.pathname)) {
     const sessionCookie = getSessionCookie(request, {
@@ -47,16 +55,16 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  return NextResponse.next()
+  const response = NextResponse.next()
+  if (isBot(ua) && nextUrl.searchParams.has("fileId")) {
+    response.headers.set("x-middleware-cache", "no-cache")
+  }
+  stampConsentRegion(request, response)
+  return response
 }
 
 export const config = {
   matcher: [
-    "/",
-    "/files/:path*",
-    "/library",
-    "/library/:path*",
-    "/account",
-    "/account/:path*",
+    "/((?!api|ingest|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\..*).*)",
   ],
 }

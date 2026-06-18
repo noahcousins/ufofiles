@@ -8,7 +8,11 @@ import { Logo } from "@/components/ui/logo"
 const footerLinkClass =
   "text-muted-foreground text-xs transition-colors hover:text-foreground"
 
-export function SiteFooter() {
+export function SiteFooter({
+  consentRequired = true,
+}: {
+  consentRequired?: boolean
+}) {
   // Re-opens the consent banner (force = show even though a choice was already
   // made), preserving the existing selection so the User can change it.
   const { setActiveUI } = useConsentManager()
@@ -24,13 +28,15 @@ export function SiteFooter() {
           <Link className={footerLinkClass} href="/terms">
             Terms
           </Link>
-          <button
-            className={footerLinkClass}
-            onClick={() => setActiveUI("banner", { force: true })}
-            type="button"
-          >
-            Cookie preferences
-          </button>
+          {consentRequired && (
+            <button
+              className={footerLinkClass}
+              onClick={() => setActiveUI("banner", { force: true })}
+              type="button"
+            >
+              Cookie preferences
+            </button>
+          )}
           <ThemeToggle />
         </div>
       </div>
