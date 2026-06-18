@@ -82,13 +82,20 @@ export function rateLimitedProcedure(
   action: RateLimitAction,
   keyFn?: (rawInput: unknown) => string
 ) {
-  return publicProcedure.use(async ({ ctx, next, getRawInput }) => {
+  return publicProcedure.use(async ({ ctx, next, getRawInput, path }) => {
     const ip = ctx.clientIp ?? "unknown"
 
     let resourceKey: string | undefined
     if (keyFn) {
       const rawInput = await getRawInput()
       resourceKey = keyFn(rawInput)
+    } else if (action === "query") {
+      // Scope each query procedure to its own per-IP bucket. Otherwise every
+      // read shares one `ratelimit:query:{ip}` budget, so a single page load
+      // (the homepage fires ~10 queries) plus the paginating video feed drain
+      // it together and trip TOO_MANY_REQUESTS on unrelated reads. The mutation
+      // and sensitive tiers stay global by design (write/auth caps).
+      resourceKey = path
     }
 
     await checkRateLimit(action, ip, resourceKey)
