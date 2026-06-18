@@ -21,14 +21,16 @@ import { TRPCProvider } from "@/lib/trpc/provider"
  */
 export function AppProviders({
   initialSession,
+  consentRequired,
   children,
 }: {
   initialSession: ComponentProps<typeof SessionProvider>["initialSession"]
+  consentRequired: boolean
   children: React.ReactNode
 }) {
   return (
     <SessionProvider initialSession={initialSession}>
-      <ConsentProvider>
+      <ConsentProvider consentRequired={consentRequired}>
         <NuqsAdapter>
           <TRPCProvider>
             <EmailVerificationProvider>

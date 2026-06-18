@@ -1,6 +1,14 @@
 import posthog from "posthog-js"
+import { CONSENT_REQUIRED_COOKIE } from "@/lib/consent/geo"
 
 const SENSITIVE_URL_PARAMS = ["token", "otp", "code", "error"]
+
+function consentRequired(): boolean {
+  if (typeof document === "undefined") {
+    return false
+  }
+  return document.cookie.includes(`${CONSENT_REQUIRED_COOKIE}=1`)
+}
 const URL_PROPS = [
   "$current_url",
   "$pathname",
@@ -31,8 +39,6 @@ posthog.init(process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN ?? "", {
   capture_exceptions: true,
   debug: process.env.NODE_ENV === "development",
   person_profiles: "identified_only",
-  // Consent gating (c15t): don't write cookies/storage until measurement
-  // consent is granted; PostHogConsent flips opt-in/out on the c15t signal.
   cookieless_mode: "on_reject",
   before_send: (event) => {
     if (event?.properties) {
@@ -47,5 +53,6 @@ posthog.init(process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN ?? "", {
   },
 })
 
-// Stay opted out until c15t confirms measurement consent (see PostHogConsent).
-posthog.opt_out_capturing()
+if (consentRequired()) {
+  posthog.opt_out_capturing()
+}
