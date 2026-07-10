@@ -1,0 +1,1 @@
+ALTER TABLE "video_moments" ADD COLUMN "source" text DEFAULT 'official' NOT NULL;
