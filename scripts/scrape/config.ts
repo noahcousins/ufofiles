@@ -44,6 +44,7 @@ export const RELEASE_DATES: Record<string, string> = {
   "release-1": "5/8/26",
   "release-2": "5/22/26",
   "release-3": "6/12/26",
+  "release-4": "7/10/26",
 }
 
 // ---------------------------------------------------------------------------
