@@ -62,6 +62,19 @@ _Avoid_: Folder (implies containment), playlist, album
 A user-requested compilation of marks into downloadable artifacts, produced asynchronously. The marks are chosen ad hoc or by picking a Collection; either way the Export snapshots them at request time and never changes afterward. An Export has a lifecycle (pending → processing → ready / failed) and, once ready, yields links to its artifacts — including each Clip as a real cut video file. (When and how a Clip becomes a rendered file is an implementation concern — see ADR-0002.)
 _Avoid_: Download (downloading a single File is a different act), backup
 
+### Plans & limits
+
+**Plan**:
+Which entitlement set a User has — **Free** or **Paid**. Orthogonal to identity tier (User → Member): a Plan only matters for someone who can already Clip, i.e. a Member. Free is the default; Paid is unlocked by an active subscription.
+
+**Subscriber**:
+A Member with an **active** paid subscription (the Paid Plan). Entitlement keys off subscription *status*, **never** off the amount paid — a $5 and a $50 Subscriber are identical in what they can do (ADR-0005). User-facing label is "Supporter."
+_Avoid_: Paid user/customer (a Stripe Customer is the billing record, not the identity), premium member.
+
+**Clip allowance**:
+The number of Clips a User may **create** within a calendar month — a *flow* meter, not a stock cap. Creating a Clip spends one unit; deleting a Clip does **not** refund it. Re-clipping identical bounds (a content-dedup render hit, ADR-0002) still spends a unit — the user is metered on intent, not on compute saved. The allowance differs by plan (Free vs Paid).
+_Avoid_: Clip limit/cap (ambiguous — the legacy `maxClipsPerUser: 50` was a lifetime *stock* cap on Clips owned; the allowance is per-month creation), quota.
+
 ## Flagged ambiguities
 
 - **"Save" vs Bookmark**: The feed's action overlay uses "Save" to mean *download the file to the device*. Bookmarking is a different act (marking for later within the app). Never use "save" for bookmarking.

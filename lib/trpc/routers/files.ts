@@ -134,11 +134,13 @@ const feedColumns = sql`
      FROM video_moments vm
      WHERE vm.file_id = f.id),
     '[]'::json
-  ) AS moments
+  ) AS moments,
+  (SELECT COUNT(*) FROM bookmarks b WHERE b.file_id = f.id)::int AS bookmark_count
 `
 
 type FeedRow = {
   agency: string | null
+  bookmark_count: number | string | null
   description: string | null
   file_size: number | string | null
   id: number
@@ -171,6 +173,7 @@ function mapFeedRow(row: FeedRow) {
     description: row.description,
     tags: row.tags ?? [],
     moments: row.moments ?? [],
+    bookmarkCount: Number(row.bookmark_count ?? 0),
   }
 }
 
@@ -440,7 +443,7 @@ export const filesRouter = router({
       const page = cursor ?? 1
 
       return withCache(
-        cacheKey("files:videoFeed:v5", { page, pageSize, seed }),
+        cacheKey("files:videoFeed:v6", { page, pageSize, seed }),
         SIX_HOURS,
         async () => {
           // All releases are eligible EXCEPT release-1, whose videos were never
@@ -485,7 +488,7 @@ export const filesRouter = router({
     .input(z.object({ id: z.number().int().positive() }))
     .query(({ input }) =>
       withCache(
-        cacheKey("files:feedVideoById:v2", { id: input.id }),
+        cacheKey("files:feedVideoById:v3", { id: input.id }),
         SIX_HOURS,
         async () => {
           const rows = await db.execute<FeedRow>(sql`

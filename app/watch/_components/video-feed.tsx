@@ -32,8 +32,7 @@ export function VideoFeed() {
   const observerRef = useRef<IntersectionObserver | null>(null)
   const ratioMapRef = useRef<Map<number, number>>(new Map())
 
-  const containerRef = useRef<HTMLDivElement>(null)
-  const scrollDirection = useScrollDirection(containerRef)
+  const scrollDirection = useScrollDirection()
 
   const activeIndexRef = useRef(activeIndex)
   activeIndexRef.current = activeIndex
@@ -56,6 +55,68 @@ export function VideoFeed() {
     }
     return poolRef.current[index % VIDEO_POOL_SIZE] ?? null
   }, [])
+
+  // The feed scrolls the document itself (not an inner overflow container) so
+  // iOS Safari collapses its toolbar on scroll, reclaiming the bottom bar.
+  // Document-level scroll-snap must live on the root scroller; set it inline on
+  // BOTH html and body because WebKit reads the viewport's snap config from one
+  // or the other depending on version, and inline styles dodge cascade-layer
+  // surprises (a @layer base rule lost to `scroll-snap-type: none`).
+  //
+  // Snap strength tracks prefers-reduced-motion: `mandatory` forces an animated
+  // snap on every scroll (disorienting for motion-sensitive users and hostile to
+  // browser zoom / find-in-page), so we drop to the gentler `proximity` — which
+  // only snaps when you settle near a boundary — when reduced motion is asked
+  // for. We listen for live changes so toggling the OS setting takes effect
+  // without a reload.
+  useEffect(() => {
+    const { documentElement: html, body } = document
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)")
+    const apply = () => {
+      const snap = reduceMotion.matches ? "y proximity" : "y mandatory"
+      html.style.scrollSnapType = snap
+      body.style.scrollSnapType = snap
+    }
+    apply()
+    reduceMotion.addEventListener("change", apply)
+    return () => {
+      reduceMotion.removeEventListener("change", apply)
+      html.style.scrollSnapType = ""
+      body.style.scrollSnapType = ""
+    }
+  }, [])
+
+  // While a clip is being edited, freeze page scroll so handle drags can't snap
+  // the editor away. `overflow:hidden` alone does NOT lock scroll in iOS Safari —
+  // the reliable cross-browser lock is `position:fixed` on the body offset by the
+  // current scrollY, which we capture on freeze and restore on release so the
+  // feed returns to exactly where the user left it (no jump to the top).
+  useEffect(() => {
+    if (!clipEditing) {
+      return
+    }
+    const { body } = document
+    const scrollY = window.scrollY
+    // No need to clear scroll-snap: `position:fixed` takes the body out of flow,
+    // so the document can't scroll and snap is inert until we release.
+    body.style.position = "fixed"
+    body.style.top = `-${scrollY}px`
+    body.style.left = "0"
+    body.style.right = "0"
+    body.style.width = "100%"
+    body.style.overflow = "hidden"
+    return () => {
+      body.style.position = ""
+      body.style.top = ""
+      body.style.left = ""
+      body.style.right = ""
+      body.style.width = ""
+      body.style.overflow = ""
+      // Releasing `position:fixed` drops the page back to scroll offset 0, so
+      // restore the saved position synchronously — no flash of the top.
+      window.scrollTo(0, scrollY)
+    }
+  }, [clipEditing])
 
   // Bless every pooled element the first time a real user gesture is
   // available: play()+pause() inside the gesture permanently lifts iOS's
@@ -208,11 +269,6 @@ export function VideoFeed() {
   // effects instead would call play() outside the gesture and get
   // NotAllowedError. (This is how TikTok-style feeds keep autoplay working.)
   useEffect(() => {
-    const container = containerRef.current
-    if (!container) {
-      return
-    }
-
     let startY: number | null = null
     let fromControls = false
 
@@ -249,15 +305,15 @@ export function VideoFeed() {
       }, 800)
     }
 
-    container.addEventListener("touchstart", onTouchStart, { passive: true })
-    container.addEventListener("touchend", onTouchEnd, { passive: true })
+    window.addEventListener("touchstart", onTouchStart, { passive: true })
+    window.addEventListener("touchend", onTouchEnd, { passive: true })
     // When native scrolling consumes the touch, iOS can deliver touchcancel
     // instead of touchend — handle both so the swipe is never missed.
-    container.addEventListener("touchcancel", onTouchEnd, { passive: true })
+    window.addEventListener("touchcancel", onTouchEnd, { passive: true })
     return () => {
-      container.removeEventListener("touchstart", onTouchStart)
-      container.removeEventListener("touchend", onTouchEnd)
-      container.removeEventListener("touchcancel", onTouchEnd)
+      window.removeEventListener("touchstart", onTouchStart)
+      window.removeEventListener("touchend", onTouchEnd)
+      window.removeEventListener("touchcancel", onTouchEnd)
     }
   }, [playWithinGesture, handleInteract])
 
@@ -294,7 +350,8 @@ export function VideoFeed() {
       },
       {
         threshold: [0, 0.2, 0.4, 0.6, 0.8, 1.0],
-        root: containerRef.current,
+        // Viewport is the scroll root now that the feed scrolls the document.
+        root: null,
       }
     )
 
@@ -389,7 +446,7 @@ export function VideoFeed() {
 
   const handleShuffle = useCallback(() => {
     setSeed(Math.random().toString(36).slice(2))
-    containerRef.current?.scrollTo({
+    window.scrollTo({
       top: 0,
       behavior: "instant" as ScrollBehavior,
     })
@@ -397,14 +454,9 @@ export function VideoFeed() {
   }, [])
 
   return (
-    <div
-      className={
-        clipEditing
-          ? "fixed inset-0 z-50 overflow-hidden bg-black"
-          : "fixed inset-0 z-50 overflow-y-auto overscroll-y-contain bg-black [scroll-snap-type:y_mandatory]"
-      }
-      ref={containerRef}
-    >
+    // Scrolls the document itself (snap + freeze are set on the root scroller in
+    // the effects above) so iOS Safari collapses its toolbar on scroll.
+    <div className="relative bg-black">
       {/* Desktop-only ambient backdrop. Hidden on mobile, where the column is
           full-width and the backdrop would never show. Layers cross-fade so it
           never dips to black between videos. */}

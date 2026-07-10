@@ -28,6 +28,7 @@ export interface VideoMoment {
 
 export interface FeedItem {
   agency: string | null
+  bookmarkCount: number
   description: string | null
   fileSize: number | null
   id: number

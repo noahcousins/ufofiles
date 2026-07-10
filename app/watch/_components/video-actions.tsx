@@ -31,7 +31,7 @@ export function VideoActions({ item, onStartClip }: VideoActionsProps) {
     bookmarkCount,
     toggle: toggleBookmark,
     mutating,
-  } = useBookmark(item.id)
+  } = useBookmark(item.id, item.bookmarkCount)
 
   const handleBookmark = useCallback(
     (e: React.MouseEvent) => {
