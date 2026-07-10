@@ -11,8 +11,14 @@ import { trpc } from "@/lib/trpc/client"
  * and the file browser. Bookmarking requires a verified account: signed out →
  * `toggle()` opens the global auth modal; signed-in-but-unverified → the verify
  * modal pops and the toggle runs once verified. Analytics live in the caller.
+ *
+ * `initialCount` seeds the public bookmark count from a payload that already
+ * carries it (the watch feed embeds it per item), so we skip the per-card
+ * `counts` round trip. The seed populates React Query's cache, so the optimistic
+ * toggle/rollback below still works unchanged. Omit it (e.g. the file dialog) to
+ * fetch the count live.
  */
-export function useBookmark(fileId: number) {
+export function useBookmark(fileId: number, initialCount?: number) {
   const { data: session } = useSession()
   const openAuth = useAuthDialog()
   const requireVerified = useRequireVerified()
@@ -23,10 +29,16 @@ export function useBookmark(fileId: number) {
   })
   const isBookmarked = bookmarkedIds.data?.includes(fileId) ?? false
 
-  // Aggregate count across all users — public, cached.
+  // Aggregate count across all users — public, cached. When the caller seeds it
+  // we serve the seed from cache and skip the network entirely.
+  const hasSeededCount = initialCount !== undefined
   const bookmarkCounts = trpc.bookmarks.counts.useQuery(
     { fileIds: [fileId] },
-    { staleTime: 60 * 1000 }
+    {
+      enabled: !hasSeededCount,
+      staleTime: 60 * 1000,
+      initialData: hasSeededCount ? { [fileId]: initialCount } : undefined,
+    }
   )
   const bookmarkCount = bookmarkCounts.data?.[fileId] ?? 0
 
