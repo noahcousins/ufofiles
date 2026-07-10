@@ -130,7 +130,8 @@ const feedColumns = sql`
          'id', vm.id,
          'startSeconds', vm.start_seconds,
          'endSeconds', vm.end_seconds,
-         'description', vm.description
+         'description', vm.description,
+         'source', vm.source
        ) ORDER BY vm.sort_order
      )
      FROM video_moments vm
@@ -155,6 +156,7 @@ type FeedRow = {
         startSeconds: number
         endSeconds: number | null
         description: string
+        source: "official" | "ai-generated"
       }[]
     | null
   r2_key: string | null
@@ -450,7 +452,7 @@ export const filesRouter = router({
       const page = cursor ?? 1
 
       return withCache(
-        cacheKey("files:videoFeed:v7", { page, pageSize, seed }),
+        cacheKey("files:videoFeed:v8", { page, pageSize, seed }),
         SIX_HOURS,
         async () => {
           // All releases are eligible EXCEPT release-1, whose videos were never
@@ -495,7 +497,7 @@ export const filesRouter = router({
     .input(z.object({ id: z.number().int().positive() }))
     .query(({ input }) =>
       withCache(
-        cacheKey("files:feedVideoById:v4", { id: input.id }),
+        cacheKey("files:feedVideoById:v5", { id: input.id }),
         SIX_HOURS,
         async () => {
           const rows = await db.execute<FeedRow>(sql`

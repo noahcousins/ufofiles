@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
 import { files, videoMoments } from "../lib/db/schema.js"
@@ -29,7 +29,14 @@ async function main() {
 
     const moments = parseVideoMoments(row.description)
 
-    await db.delete(videoMoments).where(eq(videoMoments.fileId, row.id))
+    await db
+      .delete(videoMoments)
+      .where(
+        and(
+          eq(videoMoments.fileId, row.id),
+          eq(videoMoments.source, "official")
+        )
+      )
 
     if (moments.length === 0) {
       continue
@@ -41,6 +48,7 @@ async function main() {
         startSeconds: m.startSeconds,
         endSeconds: m.endSeconds,
         description: m.description,
+        source: "official",
         sortOrder: m.sortOrder,
       }))
     )

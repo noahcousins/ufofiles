@@ -10,7 +10,7 @@ import {
 } from "motion/react"
 import type React from "react"
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
-import type { VideoMoment } from "./video-panel"
+import type { MomentTooltip, VideoMoment } from "./video-panel"
 
 function formatTime(s: number): string {
   const m = Math.floor(s / 60)
@@ -66,7 +66,7 @@ interface VideoControlsProps {
   onMuteToggle: () => void
   onSeek: (pct: number) => void
   onTogglePlay: () => void
-  onTooltipChange?: (text: string | null) => void
+  onTooltipChange?: (tooltip: MomentTooltip | null) => void
   playing: boolean
   showUnmute: boolean
 }
@@ -91,10 +91,9 @@ export function VideoControls({
   const draggingRef = useRef(false)
   const [dragPct, setDragPct] = useState<number | null>(null)
   const [expanded, setExpanded] = useState(false)
-  const [activeTooltip, setActiveTooltip] = useState<{
-    pct: number
-    text: string
-  } | null>(null)
+  const [activeTooltip, setActiveTooltip] = useState<
+    (MomentTooltip & { pct: number }) | null
+  >(null)
   const [barWidth, setBarWidth] = useState(300)
   const fillPct = useMotionValue(0)
   const fillWidth = useTransform(fillPct, (v) => v * barWidth)
@@ -121,17 +120,33 @@ export function VideoControls({
     return moments.map((m) => ({
       pct: m.startSeconds / duration,
       description: m.description,
+      source: m.source,
     }))
   }, [moments, duration])
 
-  const rawMomentPcts = useMemo(
-    () => momentPcts.map((m) => m.pct),
+  // Official and AI-generated moments get separate terrain layers so
+  // synthetic annotations always read visually dimmer than official ones.
+  const officialPcts = useMemo(
+    () =>
+      momentPcts.filter((m) => m.source !== "ai-generated").map((m) => m.pct),
+    [momentPcts]
+  )
+  const aiPcts = useMemo(
+    () =>
+      momentPcts.filter((m) => m.source === "ai-generated").map((m) => m.pct),
     [momentPcts]
   )
 
   const terrainPath = useMemo(
-    () => buildTerrainPath(rawMomentPcts, barWidth, EXPANDED_HEIGHT),
-    [rawMomentPcts, barWidth]
+    () => buildTerrainPath(officialPcts, barWidth, EXPANDED_HEIGHT),
+    [officialPcts, barWidth]
+  )
+  const aiTerrainPath = useMemo(
+    () =>
+      aiPcts.length > 0
+        ? buildTerrainPath(aiPcts, barWidth, EXPANDED_HEIGHT)
+        : null,
+    [aiPcts, barWidth]
   )
 
   const snapToPct = useCallback(
@@ -147,10 +162,10 @@ export function VideoControls({
   )
 
   const findTooltipAt = useCallback(
-    (pct: number): { pct: number; text: string } | null => {
+    (pct: number): (MomentTooltip & { pct: number }) | null => {
       for (const m of momentPcts) {
         if (Math.abs(pct - m.pct) < SNAP_THRESHOLD) {
-          return { pct: m.pct, text: m.description }
+          return { pct: m.pct, text: m.description, source: m.source }
         }
       }
       return null
@@ -225,7 +240,9 @@ export function VideoControls({
       setDragPct(snapped)
       const tooltip = findTooltipAt(snapped)
       setActiveTooltip(tooltip)
-      onTooltipChange?.(tooltip?.text ?? null)
+      onTooltipChange?.(
+        tooltip ? { text: tooltip.text, source: tooltip.source } : null
+      )
       seekToSnap(snapped, snapped !== raw)
     },
     [snapToPct, findTooltipAt, seekToSnap, onTooltipChange]
@@ -391,13 +408,17 @@ export function VideoControls({
                 className="absolute bottom-0 left-0 rounded-none bg-white/80"
                 style={{ height: BASELINE, width: fillWidth }}
               />
-              {/* Tick marks */}
-              {rawMomentPcts.map((pct, i) => (
+              {/* Tick marks (AI-generated moments render dimmer) */}
+              {momentPcts.map((m, i) => (
                 <span
-                  className="absolute bottom-0 bg-white"
-                  key={`${i}-${pct}`}
+                  className={
+                    m.source === "ai-generated"
+                      ? "absolute bottom-0 bg-white/50"
+                      : "absolute bottom-0 bg-white"
+                  }
+                  key={`${i}-${m.pct}`}
                   style={{
-                    left: `${pct * 100}%`,
+                    left: `${m.pct * 100}%`,
                     width: TICK_WIDTH,
                     height: TICK_HEIGHT,
                     transform: "translateX(-50%)",
@@ -420,6 +441,9 @@ export function VideoControls({
                 width={barWidth}
               >
                 <path className="fill-white/25" d={terrainPath} />
+                {aiTerrainPath && (
+                  <path className="fill-white/10" d={aiTerrainPath} />
+                )}
               </svg>
 
               <svg
@@ -443,6 +467,13 @@ export function VideoControls({
                   clipPath={`url(#${clipId})`}
                   d={terrainPath}
                 />
+                {aiTerrainPath && (
+                  <path
+                    className="fill-white/40"
+                    clipPath={`url(#${clipId})`}
+                    d={aiTerrainPath}
+                  />
+                )}
               </svg>
             </motion.div>
           </div>

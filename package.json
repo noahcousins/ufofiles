@@ -21,6 +21,7 @@
     "db:backfill-loops": "tsx --env-file=.env.local scripts/backfill-loops.ts",
     "db:import-transcripts": "tsx --env-file=.env.local scripts/import-transcripts.ts",
     "db:populate-moments": "tsx --env-file=.env.local scripts/populate-video-moments.ts",
+    "db:populate-ai-moments": "tsx --env-file=.env.local scripts/populate-ai-moments.ts",
     "scrape:extract-ocr": "tsx --env-file=.env.local scripts/scrape/13-extract-pdf-ocr.ts",
     "worker:dev": "wrangler dev",
     "worker:deploy": "wrangler deploy",

@@ -1,8 +1,25 @@
+export type MomentSource = "official" | "ai-generated"
+
 export interface ParsedMoment {
   description: string
   endSeconds: number | null
   sortOrder: number
   startSeconds: number
+}
+
+// AI-generated moments stay hidden in the UI until this flag is flipped on,
+// so populating video_moments never exposes unlabeled synthetic text by
+// itself. Build-time flag (NEXT_PUBLIC_*): flipping it requires a redeploy.
+// const SHOW_AI_MOMENTS = process.env.NEXT_PUBLIC_SHOW_AI_MOMENTS === "true"
+
+export function visibleMoments<T extends { source: MomentSource }>(
+  moments: T[]
+): T[] {
+  // if (SHOW_AI_MOMENTS) {
+  //   return moments
+  // }
+  // return moments.filter((m) => m.source !== "ai-generated")
+  return moments
 }
 
 // Accepts MM:SS and HH:MM:SS (optional hours group).
