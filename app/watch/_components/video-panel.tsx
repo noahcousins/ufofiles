@@ -364,6 +364,26 @@ export function VideoPanel({
     [duration]
   )
 
+  // Fullscreen the <video> element itself. iOS Safari doesn't support the
+  // standard Fullscreen API on arbitrary elements — only the video element,
+  // via webkitEnterFullscreen — so fall back to that.
+  const handleFullscreen = useCallback(() => {
+    const v = videoRef.current
+    if (!v) {
+      return
+    }
+    const vEl = v as HTMLVideoElement & { webkitEnterFullscreen?: () => void }
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => undefined)
+      return
+    }
+    if (v.requestFullscreen) {
+      v.requestFullscreen().catch(() => vEl.webkitEnterFullscreen?.())
+    } else {
+      vEl.webkitEnterFullscreen?.()
+    }
+  }, [])
+
   const [scrubbing, setScrubbing] = useState(false)
   const [tooltipText, setTooltipText] = useState<string | null>(null)
 
@@ -574,9 +594,14 @@ export function VideoPanel({
             showUnmute={showUnmute}
           />
 
-          <VideoActions item={item} onStartClip={enterClipMode} />
+          <VideoActions
+            item={item}
+            onFullscreen={handleFullscreen}
+            onStartClip={enterClipMode}
+          />
 
           <VideoMetadata
+            active={isActive}
             item={item}
             scrubbing={scrubbing}
             tooltipText={tooltipText}
