@@ -111,6 +111,9 @@ export const videoMoments = pgTable(
     startSeconds: integer("start_seconds").notNull(),
     endSeconds: integer("end_seconds"),
     description: text("description").notNull(),
+    // 'official' = verbatim from the agency release text; 'ai-generated' =
+    // machine-drafted (Gemini) and must always be labeled as such in the UI.
+    source: text("source").notNull().default("official"),
     sortOrder: integer("sort_order").notNull().default(0),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },

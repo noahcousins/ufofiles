@@ -1,7 +1,7 @@
 "use client"
 
 import posthog from "posthog-js"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAuthDialog } from "@/components/auth/auth-dialog-provider"
 import { useRequireVerified } from "@/components/auth/email-verification-provider"
 import { type ClipDraft, ClipEditor } from "@/components/clips/clip-editor"
@@ -11,6 +11,7 @@ import { useSession } from "@/lib/auth/session-provider"
 import { writePendingClip } from "@/lib/clips/pending-clip"
 import { getHlsPlaylistUrl, getVideoThumbUrl } from "@/lib/file-url"
 import { trpc } from "@/lib/trpc/client"
+import { type MomentSource, visibleMoments } from "@/lib/video-moments"
 import type { LoadState } from "./preload-window"
 import { useHlsPlayer } from "./use-hls-player"
 import { VideoActions } from "./video-actions"
@@ -23,7 +24,13 @@ export interface VideoMoment {
   description: string
   endSeconds: number | null
   id: number
+  source: MomentSource
   startSeconds: number
+}
+
+export interface MomentTooltip {
+  source: MomentSource
+  text: string
 }
 
 export interface FeedItem {
@@ -385,14 +392,16 @@ export function VideoPanel({
   }, [])
 
   const [scrubbing, setScrubbing] = useState(false)
-  const [tooltipText, setTooltipText] = useState<string | null>(null)
+  const [tooltip, setTooltip] = useState<MomentTooltip | null>(null)
+
+  const moments = useMemo(() => visibleMoments(item.moments), [item.moments])
 
   const handleExpandChange = useCallback((expanded: boolean) => {
     setScrubbing(expanded)
   }, [])
 
-  const handleTooltipChange = useCallback((text: string | null) => {
-    setTooltipText(text)
+  const handleTooltipChange = useCallback((next: MomentTooltip | null) => {
+    setTooltip(next)
   }, [])
 
   // Enter clip mode: seed bounds at the playhead (+15s), or copy a Moment's
@@ -408,7 +417,7 @@ export function VideoPanel({
     // otherwise from the playhead. Either way the seed is a short default
     // window the user widens from — never the Moment's full (possibly minutes-
     // long) span.
-    const moment = item.moments.find(
+    const moment = moments.find(
       (m) =>
         m.endSeconds != null && now >= m.startSeconds && now <= m.endSeconds
     )
@@ -423,7 +432,7 @@ export function VideoPanel({
     setClipDraft({ start, end })
     setClipMode(true)
     onClipEditingChange(true)
-  }, [duration, item.moments, onClipEditingChange])
+  }, [duration, moments, onClipEditingChange])
 
   const exitClipMode = useCallback(() => {
     setClipMode(false)
@@ -569,7 +578,7 @@ export function VideoPanel({
           currentTime={currentTime}
           draft={clipDraft}
           duration={duration}
-          moments={item.moments}
+          moments={moments}
           onCancel={exitClipMode}
           onChange={setClipDraft}
           onCommit={handleClipCommit}
@@ -583,7 +592,7 @@ export function VideoPanel({
           <VideoControls
             currentTime={currentTime}
             duration={duration}
-            moments={item.moments}
+            moments={moments}
             muted={muted}
             onExpandChange={handleExpandChange}
             onMuteToggle={handleMuteToggle}
@@ -603,8 +612,8 @@ export function VideoPanel({
           <VideoMetadata
             active={isActive}
             item={item}
-            scrubbing={scrubbing}
-            tooltipText={tooltipText}
+            scrubbing={scrubbing && moments.length > 0}
+            tooltip={tooltip}
           />
         </>
       )}

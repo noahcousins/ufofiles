@@ -2,10 +2,17 @@
 
 import { Hash, MapPin } from "@phosphor-icons/react"
 import { AnimatePresence, animate, motion, useMotionValue } from "motion/react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 import { AgencySeal } from "@/components/files/file-filters"
 import { cn } from "@/lib/utils"
-import type { FeedItem } from "./video-panel"
+import type { FeedItem, MomentTooltip } from "./video-panel"
 
 // Marquee tuning. Constant scroll SPEED (px/s) keeps long and short titles
 // legible at the same pace; the pauses let the viewer read each end before it
@@ -225,18 +232,69 @@ function useMarquee<C extends HTMLElement, I extends HTMLElement>(
     }, MARQUEE_RESUME_DELAY)
   }, [x, advance, id])
 
-  const draggable = overflow > 0
-  const dragProps = {
-    drag: draggable ? ("x" as const) : false,
-    dragConstraints: { left: -overflow, right: 0 },
-    dragElastic: 0.05,
-    dragMomentum: false,
-    onDragStart: handleDragStart,
-    onDragEnd: handleDragEnd,
-    style: { x },
-  }
+  // Manual horizontal drag. We deliberately avoid Framer Motion's `drag`: it
+  // manages touch-action / pointer-capture in ways that swallowed the feed's
+  // vertical swipe-to-play and first-tap autoplay gestures (the title/tags sit
+  // low on screen, right where people swipe). Here we only capture the pointer
+  // once the gesture is clearly horizontal, so vertical scrolling (pan-y) and
+  // taps pass straight through.
+  const onPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLElement>) => {
+      if (overflow <= 0) {
+        return
+      }
+      const el = e.currentTarget
+      const startX = e.clientX
+      const startY = e.clientY
+      const baseX = x.get()
+      let dragging = false
+      let decided = false
 
-  return { containerRef, innerRef, draggable, dragProps }
+      const onMove = (ev: PointerEvent) => {
+        const dx = ev.clientX - startX
+        const dy = ev.clientY - startY
+        if (!decided) {
+          if (Math.abs(dx) < 6 && Math.abs(dy) < 6) {
+            return
+          }
+          // Vertical intent — let the feed scroll; bow out of this gesture.
+          if (Math.abs(dx) <= Math.abs(dy)) {
+            cleanup()
+            return
+          }
+          decided = true
+          dragging = true
+          el.setPointerCapture?.(ev.pointerId)
+          handleDragStart()
+        }
+        if (dragging) {
+          ev.preventDefault()
+          x.set(Math.max(-overflow, Math.min(0, baseX + dx)))
+        }
+      }
+      const onUp = () => {
+        cleanup()
+        if (dragging) {
+          dragging = false
+          handleDragEnd()
+        }
+      }
+      function cleanup() {
+        window.removeEventListener("pointermove", onMove)
+        window.removeEventListener("pointerup", onUp)
+        window.removeEventListener("pointercancel", onUp)
+      }
+
+      window.addEventListener("pointermove", onMove, { passive: false })
+      window.addEventListener("pointerup", onUp)
+      window.addEventListener("pointercancel", onUp)
+    },
+    [overflow, x, handleDragStart, handleDragEnd]
+  )
+
+  const draggable = overflow > 0
+
+  return { containerRef, innerRef, draggable, onPointerDown, x }
 }
 
 // Single-line title that scrolls end-to-end and back only when the text is
@@ -252,7 +310,7 @@ function MarqueeTitle({
   turn: MarqueeTurn
   sched: MarqueeScheduler
 }) {
-  const { containerRef, innerRef, draggable, dragProps } = useMarquee<
+  const { containerRef, innerRef, draggable, onPointerDown, x } = useMarquee<
     HTMLHeadingElement,
     HTMLSpanElement
   >("title", active, turn, sched)
@@ -267,8 +325,9 @@ function MarqueeTitle({
           "block w-max whitespace-nowrap will-change-transform",
           draggable && "cursor-grab active:cursor-grabbing"
         )}
+        onPointerDown={onPointerDown}
         ref={innerRef}
-        {...dragProps}
+        style={{ x, touchAction: draggable ? "pan-y" : undefined }}
       >
         {text}
       </motion.span>
@@ -289,7 +348,7 @@ function MarqueeTags({
   turn: MarqueeTurn
   sched: MarqueeScheduler
 }) {
-  const { containerRef, innerRef, draggable, dragProps } = useMarquee<
+  const { containerRef, innerRef, draggable, onPointerDown, x } = useMarquee<
     HTMLDivElement,
     HTMLDivElement
   >("tags", active, turn, sched)
@@ -301,8 +360,9 @@ function MarqueeTags({
           "flex w-max gap-1.5 will-change-transform",
           draggable && "cursor-grab active:cursor-grabbing"
         )}
+        onPointerDown={onPointerDown}
         ref={innerRef}
-        {...dragProps}
+        style={{ x, touchAction: draggable ? "pan-y" : undefined }}
       >
         {tags.map((tag) => (
           <a
@@ -324,37 +384,51 @@ interface VideoMetadataProps {
   active?: boolean
   item: FeedItem
   scrubbing?: boolean
-  tooltipText?: string | null
+  tooltip?: MomentTooltip | null
 }
 
 export function VideoMetadata({
   active,
   item,
   scrubbing,
-  tooltipText,
+  tooltip,
 }: VideoMetadataProps) {
   const { turn, sched } = useMarqueeScheduler(active ?? false)
 
   return (
-    <motion.div
-      animate={{ y: scrubbing ? -14 : 0 }}
-      className="absolute right-0 bottom-10 left-0 z-20"
-      transition={{ type: "spring", stiffness: 400, damping: 30 }}
-    >
-      <div className="pointer-events-none absolute inset-0 -bottom-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-      <div className="relative max-w-[75%] space-y-1.5 px-4">
+    // Rests snug above the progress bar; while scrubbing a video with moments
+    // the content lifts just enough to clear the expanded terrain peaks. The
+    // gradient stays put (extended 14px up so lifted text keeps its backdrop)
+    // so the bottom edge never exposes a strip of unshaded video.
+    <div className="absolute right-0 left-0 z-20" style={{ bottom: 32 }}>
+      <div
+        className="pointer-events-none absolute inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"
+        style={{ top: -14, bottom: -32 }}
+      />
+      <motion.div
+        animate={{ y: scrubbing ? -14 : 0 }}
+        className="relative max-w-[75%] space-y-1.5 px-4"
+        transition={{ type: "spring", stiffness: 400, damping: 30 }}
+      >
         <AnimatePresence>
-          {tooltipText && (
-            <motion.p
+          {tooltip && (
+            <motion.div
               animate={{ opacity: 1, y: 0 }}
-              className="mb-1.5 font-mono text-[11px] text-white/90 leading-snug [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]"
+              className="mb-1.5 space-y-0.5"
               exit={{ opacity: 0, y: 4 }}
               initial={{ opacity: 0, y: 4 }}
               key="tooltip"
               transition={{ duration: 0.15 }}
             >
-              {tooltipText}
-            </motion.p>
+              {tooltip.source === "ai-generated" && (
+                <span className="inline-block border border-white/30 px-1 py-px font-mono text-[9px] text-white/60 uppercase tracking-wider [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">
+                  AI-generated description
+                </span>
+              )}
+              <p className="font-mono text-[11px] text-white/90 leading-snug [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">
+                {tooltip.text}
+              </p>
+            </motion.div>
           )}
         </AnimatePresence>
         {item.agency && (
@@ -403,7 +477,7 @@ export function VideoMetadata({
             turn={turn}
           />
         )}
-      </div>
-    </motion.div>
+      </motion.div>
+    </div>
   )
 }
