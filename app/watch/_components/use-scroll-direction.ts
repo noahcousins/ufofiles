@@ -1,20 +1,24 @@
 import { useEffect, useRef, useState } from "react"
 import type { ScrollDirection } from "./preload-window"
 
-// Tracks document scroll direction. The feed scrolls the page itself (not an
-// inner container) so iOS Safari collapses its toolbar on scroll — so we read
-// window scroll position here rather than a container's scrollTop.
-export function useScrollDirection(): ScrollDirection {
+export function useScrollDirection(
+  containerRef: React.RefObject<HTMLDivElement | null>
+): ScrollDirection {
   const [direction, setDirection] = useState<ScrollDirection>("down")
   const lastScrollTop = useRef(0)
   const directionRef = useRef<ScrollDirection>("down")
   const rafId = useRef(0)
 
   useEffect(() => {
+    const container = containerRef.current
+    if (!container) {
+      return
+    }
+
     const onScroll = () => {
       cancelAnimationFrame(rafId.current)
       rafId.current = requestAnimationFrame(() => {
-        const top = window.scrollY
+        const top = container.scrollTop
         const newDir: ScrollDirection =
           top >= lastScrollTop.current ? "down" : "up"
         lastScrollTop.current = top
@@ -26,12 +30,12 @@ export function useScrollDirection(): ScrollDirection {
       })
     }
 
-    window.addEventListener("scroll", onScroll, { passive: true })
+    container.addEventListener("scroll", onScroll, { passive: true })
     return () => {
-      window.removeEventListener("scroll", onScroll)
+      container.removeEventListener("scroll", onScroll)
       cancelAnimationFrame(rafId.current)
     }
-  }, [])
+  }, [containerRef])
 
   return direction
 }
