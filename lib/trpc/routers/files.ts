@@ -115,6 +115,8 @@ const feedColumns = sql`
   f.incident_date,
   f.incident_location,
   f.description,
+  (SELECT r.name FROM releases r WHERE r.id = f.release_id) AS release_name,
+  (SELECT r.title FROM releases r WHERE r.id = f.release_id) AS release_title,
   COALESCE(
     (SELECT json_agg(json_build_object('slug', t.slug, 'label', t.label))
      FROM file_tags ft
@@ -156,6 +158,8 @@ type FeedRow = {
       }[]
     | null
   r2_key: string | null
+  release_name: string | null
+  release_title: string | null
   tags: { slug: string; label: string }[] | null
   title: string
 }
@@ -171,6 +175,9 @@ function mapFeedRow(row: FeedRow) {
     incidentDate: row.incident_date,
     incidentLocation: row.incident_location,
     description: row.description,
+    release: row.release_name
+      ? { name: row.release_name, title: row.release_title ?? row.release_name }
+      : null,
     tags: row.tags ?? [],
     moments: row.moments ?? [],
     bookmarkCount: Number(row.bookmark_count ?? 0),
@@ -443,7 +450,7 @@ export const filesRouter = router({
       const page = cursor ?? 1
 
       return withCache(
-        cacheKey("files:videoFeed:v6", { page, pageSize, seed }),
+        cacheKey("files:videoFeed:v7", { page, pageSize, seed }),
         SIX_HOURS,
         async () => {
           // All releases are eligible EXCEPT release-1, whose videos were never
@@ -488,7 +495,7 @@ export const filesRouter = router({
     .input(z.object({ id: z.number().int().positive() }))
     .query(({ input }) =>
       withCache(
-        cacheKey("files:feedVideoById:v3", { id: input.id }),
+        cacheKey("files:feedVideoById:v4", { id: input.id }),
         SIX_HOURS,
         async () => {
           const rows = await db.execute<FeedRow>(sql`

@@ -42,6 +42,15 @@ export function VideoMetadata({
           {item.title}
         </h2>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+          {item.release && (
+            <a
+              className="mb-1.5 rounded-none border border-white/20 bg-white/10 px-1.5 py-0.5 font-mono text-[10px] text-white/80 uppercase tracking-wide backdrop-blur-sm transition-colors hover:bg-white/20 hover:text-white"
+              href={`/?release=${encodeURIComponent(item.release.name)}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {item.release.title}
+            </a>
+          )}
           {item.agency && (
             <a
               className="flex items-center gap-1.5 font-mono text-[11px] text-white/70 hover:text-white"

@@ -37,6 +37,7 @@ export interface FeedItem {
   mimeType: string | null
   moments: VideoMoment[]
   r2Key: string | null
+  release: { name: string; title: string } | null
   tags: { slug: string; label: string }[]
   title: string
 }
