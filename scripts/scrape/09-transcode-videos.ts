@@ -99,6 +99,11 @@ export function main() {
       const inputMb = (inputSize / 1024 / 1024).toFixed(1)
       const sourceHeight = probeHeight(inputPath)
 
+      // Never upscale: a 270p source rendered at 720p costs a long encode and
+      // yields a larger file with no added detail. libx264 requires even dims.
+      const cappedHeight = Math.min(STREAM_VIDEO_HEIGHT, sourceHeight)
+      const scaleHeight = cappedHeight - (cappedHeight % 2)
+
       // --- 720p MP4 (for downloads) ---
       if (!mp4Exists) {
         process.stdout.write(
@@ -113,7 +118,7 @@ export function main() {
             inputPath,
             ...threadArgs,
             "-vf",
-            `scale=-2:${STREAM_VIDEO_HEIGHT}`,
+            `scale=-2:${scaleHeight}`,
             "-c:v",
             "libx264",
             "-preset",
