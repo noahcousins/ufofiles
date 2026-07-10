@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm"
 import { z } from "zod/v4"
 import { db } from "@/lib/db"
 import { userMarketingPreferences } from "@/lib/db/schema"
+import { syncLoopsContact } from "@/lib/loops"
 import { router } from "../init"
 import { protectedProcedure } from "../procedures"
 
@@ -31,6 +32,14 @@ export const marketingRouter = router({
           target: userMarketingPreferences.userId,
           set: { marketingConsent: input.consent, updatedAt: new Date() },
         })
+      // Mirror the opt-in/out to Loops so the send-list stays in sync. Best
+      // effort — `syncLoopsContact` swallows failures, and Postgres remains the
+      // source of truth if Loops is unreachable.
+      await syncLoopsContact({
+        email: ctx.user.email,
+        userId: ctx.user.id,
+        subscribed: input.consent,
+      })
       return { consent: input.consent }
     }),
 })

@@ -15,6 +15,7 @@ import {
   sendResetPasswordEmail,
   sendVerificationOtpEmail,
 } from "@/lib/email"
+import { syncLoopsContact } from "@/lib/loops"
 
 // Endpoints that take an email in the body and (would) send to it / create an
 // account. We validate the address before any of that happens (ADR-0004).
@@ -177,6 +178,41 @@ export const auth = betterAuth({
           },
         }
       : undefined,
+
+  // Mirror every account into Loops as a contact (the marketing send-list).
+  // Runs for all providers (email/password, magic link, Google). Failures are
+  // swallowed inside `syncLoopsContact`, so a Loops outage never breaks auth.
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (u) => {
+          // New sign-up: no marketing-preference row exists yet, and the
+          // opt-out model treats "no row" as subscribed — so seed the contact
+          // subscribed. The account-settings toggle can flip it later.
+          await syncLoopsContact({
+            email: u.email,
+            userId: u.id,
+            name: u.name,
+            emailVerified: u.emailVerified,
+            subscribed: true,
+          })
+        },
+      },
+      update: {
+        after: async (u) => {
+          // Email / name / verification changes: keep the contact fresh.
+          // `subscribed` is intentionally omitted so a profile update never
+          // overrides an unsubscribe made in Loops or via the consent toggle.
+          await syncLoopsContact({
+            email: u.email,
+            userId: u.id,
+            name: u.name,
+            emailVerified: u.emailVerified,
+          })
+        },
+      },
+    },
+  },
 
   // Validate the email before any send/create on the email-bearing endpoints
   // (ADR-0004): reject disposable / undeliverable domains up front so a bad
