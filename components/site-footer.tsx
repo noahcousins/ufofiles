@@ -2,7 +2,6 @@
 
 import { useConsentManager } from "@c15t/nextjs"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Logo } from "@/components/ui/logo"
 
@@ -14,16 +13,9 @@ export function SiteFooter({
 }: {
   consentRequired?: boolean
 }) {
-  const pathname = usePathname()
   // Re-opens the consent banner (force = show even though a choice was already
   // made), preserving the existing selection so the User can change it.
   const { setActiveUI } = useConsentManager()
-
-  // The /watch feed is a full-screen, document-scrolling experience — a footer
-  // trailing an infinite feed is unreachable and would break the scroll-snap.
-  if (pathname?.startsWith("/watch")) {
-    return null
-  }
 
   return (
     <footer className="border-border/40 border-t bg-background">
