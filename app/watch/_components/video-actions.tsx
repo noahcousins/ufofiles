@@ -5,6 +5,7 @@ import NumberFlow from "@number-flow/react"
 import {
   ArrowSquareOutIcon,
   BookmarkSimpleIcon,
+  CornersOutIcon,
   DownloadSimple,
   LinkSimpleIcon,
   ScissorsIcon,
@@ -20,10 +21,15 @@ import type { FeedItem } from "./video-panel"
 
 interface VideoActionsProps {
   item: FeedItem
+  onFullscreen: () => void
   onStartClip: () => void
 }
 
-export function VideoActions({ item, onStartClip }: VideoActionsProps) {
+export function VideoActions({
+  item,
+  onFullscreen,
+  onStartClip,
+}: VideoActionsProps) {
   const [copied, setCopied] = useState(false)
   const { data: session } = useSession()
   const {
@@ -75,6 +81,14 @@ export function VideoActions({ item, onStartClip }: VideoActionsProps) {
       })
     },
     [item.id, item.title]
+  )
+
+  const handleFullscreen = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      onFullscreen()
+    },
+    [onFullscreen]
   )
 
   if (!item.r2Key) {
@@ -192,6 +206,12 @@ export function VideoActions({ item, onStartClip }: VideoActionsProps) {
           </Popover.Positioner>
         </Popover.Portal>
       </Popover.Root>
+
+      <ActionButton
+        icon={<CornersOutIcon className="size-5" weight="fill" />}
+        label="Fullscreen"
+        onClick={handleFullscreen}
+      />
     </div>
   )
 }
