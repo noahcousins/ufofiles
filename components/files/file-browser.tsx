@@ -11,6 +11,7 @@ import { loadManifest } from "@/lib/file-cache"
 import { trpc } from "@/lib/trpc/client"
 import { FileCard, SkeletonCard } from "./file-card"
 import { FileFilters, FileFiltersSkeleton } from "./file-filters"
+import { toggleTagParam } from "./filter-controls"
 
 const PAGE_SIZE = 48
 
@@ -280,12 +281,9 @@ export function FileBrowser() {
               setFilters({ tag: null })
               return
             }
-            const current = filters.tag ? filters.tag.split(",") : []
-            const next = current.includes(slug)
-              ? current.filter((t) => t !== slug)
-              : [...current, slug]
-            setFilters({ tag: next.length > 0 ? next.join(",") : null })
-            if (!current.includes(slug)) {
+            const { added, value } = toggleTagParam(filters.tag, slug)
+            setFilters({ tag: value })
+            if (added) {
               posthog.capture("tag_filter_applied", { tag: slug })
             }
           }}

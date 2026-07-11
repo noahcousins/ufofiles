@@ -25,6 +25,11 @@ export default async function WatchPage({
     { initialCursor: 1 }
   )
 
+  // The filter drawer maps a `?release=<name>` param to an id via this list;
+  // prefetching it keeps a filtered share link from stalling on that lookup.
+  // biome-ignore lint/complexity/noVoid: fire-and-forget RSC prefetch
+  void trpc.releases.list.prefetch()
+
   // Share links land on a specific video (`/watch?v=<id>`). Prefetch it so the
   // pinned video is ready at hydration and the feed doesn't spin first.
   const params = await searchParams

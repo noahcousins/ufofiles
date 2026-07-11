@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react"
-import { AgencySeal } from "@/components/files/file-filters"
+import { AgencySeal } from "@/components/files/filter-controls"
 import { cn } from "@/lib/utils"
 import type { FeedItem, MomentTooltip } from "./video-panel"
 
