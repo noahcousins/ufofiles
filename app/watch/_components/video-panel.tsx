@@ -13,6 +13,7 @@ import { getHlsPlaylistUrl, getVideoThumbUrl } from "@/lib/file-url"
 import { trpc } from "@/lib/trpc/client"
 import { type MomentSource, visibleMoments } from "@/lib/video-moments"
 import type { LoadState } from "./preload-window"
+import { useBackdropLuminance } from "./use-backdrop-luminance"
 import { useHlsPlayer } from "./use-hls-player"
 import { VideoActions } from "./video-actions"
 import { VideoControls } from "./video-controls"
@@ -394,6 +395,16 @@ export function VideoPanel({
   const [scrubbing, setScrubbing] = useState(false)
   const [tooltip, setTooltip] = useState<MomentTooltip | null>(null)
 
+  // Flip an action button's text dark when the video content behind it is
+  // bright — white labels vanish over white footage. Sampled per button, so
+  // buttons over letterbox stay white while overlapping ones flip.
+  const actionsRegionRef = useRef<HTMLDivElement>(null)
+  const lightBackdrops = useBackdropLuminance(
+    videoEl,
+    actionsRegionRef,
+    isActive && isReady && !clipMode
+  )
+
   const moments = useMemo(() => visibleMoments(item.moments), [item.moments])
 
   const handleExpandChange = useCallback((expanded: boolean) => {
@@ -605,8 +616,10 @@ export function VideoPanel({
 
           <VideoActions
             item={item}
+            lightBackdrops={lightBackdrops}
             onFullscreen={handleFullscreen}
             onStartClip={enterClipMode}
+            regionRef={actionsRegionRef}
           />
 
           <VideoMetadata
