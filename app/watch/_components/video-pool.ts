@@ -18,6 +18,10 @@ export function createPooledVideo(): HTMLVideoElement {
   v.playsInline = true
   v.muted = true
   v.preload = "auto"
+  // Keeps the canvas untainted for luminance sampling on the native-HLS path
+  // (iOS), where the element loads the cross-origin worker URL directly. The
+  // worker serves Access-Control-Allow-Origin: * on media responses.
+  v.crossOrigin = "anonymous"
   v.className = "h-full w-full object-contain"
   return v
 }

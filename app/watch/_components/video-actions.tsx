@@ -21,14 +21,23 @@ import type { FeedItem } from "./video-panel"
 
 interface VideoActionsProps {
   item: FeedItem
+  // Per-button luminance flags keyed by luminanceKey: true when the video
+  // content behind THAT button's label text is bright, so only text actually
+  // over bright footage flips dark — labels over letterbox stay white (see
+  // use-backdrop-luminance).
+  lightBackdrops: Record<string, boolean>
   onFullscreen: () => void
   onStartClip: () => void
+  // Measured by the luminance sampler to know which pixels sit behind us.
+  regionRef: React.Ref<HTMLDivElement>
 }
 
 export function VideoActions({
   item,
+  lightBackdrops,
   onFullscreen,
   onStartClip,
+  regionRef,
 }: VideoActionsProps) {
   const [copied, setCopied] = useState(false)
   const { data: session } = useSession()
@@ -107,7 +116,10 @@ export function VideoActions({
   const downloadHref = withDownloadParam(getStreamingVideoUrl(item.r2Key))
 
   return (
-    <div className="absolute right-3 bottom-16 z-30 flex w-16 flex-col items-center gap-4">
+    <div
+      className="absolute right-3 bottom-16 z-30 flex w-16 flex-col items-center gap-4"
+      ref={regionRef}
+    >
       <ActionButton
         active={isBookmarked}
         icon={
@@ -117,12 +129,16 @@ export function VideoActions({
           />
         }
         label={bookmarkLabel}
+        light={lightBackdrops.bookmark}
+        luminanceKey="bookmark"
         onClick={handleBookmark}
       />
 
       <ActionButton
         icon={<ScissorsIcon className="size-5" weight="fill" />}
         label="Clip"
+        light={lightBackdrops.clip}
+        luminanceKey="clip"
         onClick={handleClip}
       />
 
@@ -153,6 +169,8 @@ export function VideoActions({
                 )
               }
               label={copied ? "Copied" : "Share"}
+              light={lightBackdrops.share}
+              luminanceKey="share"
             />
           }
         />
@@ -210,6 +228,8 @@ export function VideoActions({
       <ActionButton
         icon={<CornersOutIcon className="size-5" weight="fill" />}
         label="Fullscreen"
+        light={lightBackdrops.fullscreen}
+        luminanceKey="fullscreen"
         onClick={handleFullscreen}
       />
     </div>
@@ -220,33 +240,47 @@ function ActionButton({
   active,
   icon,
   label,
+  light,
+  luminanceKey,
   className,
   ...rest
 }: {
   active?: boolean
   icon: React.ReactNode
   label: React.ReactNode
+  light?: boolean
+  // Keys the label <span> for the luminance sampler — the text is the only
+  // part that needs a dynamic color (the icon sits on its own scrim), so only
+  // the text's own backdrop is measured.
+  luminanceKey?: string
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       className={cn(
-        "flex flex-col items-center gap-1 text-white/80 transition-colors hover:text-white",
+        "flex flex-col items-center gap-1 transition-colors",
+        light
+          ? "text-black/80 hover:text-black"
+          : "text-white/80 hover:text-white",
         className
       )}
       type="button"
       {...rest}
     >
       {/* No transition on the active state: the background/color must flip in
-          sync with the icon weight and label text, which swap instantly. */}
+          sync with the icon weight and label text, which swap instantly. The
+          icon keeps its own color — its circle is a scrim of its own, so only
+          the label follows the backdrop luminance. */}
       <div
         className={cn(
           "flex size-10 items-center justify-center rounded-full backdrop-blur-sm",
-          active ? "bg-white text-black" : "bg-black/40"
+          active ? "bg-white text-black" : "bg-black/40 text-white"
         )}
       >
         {icon}
       </div>
-      <span className="font-mono text-[10px]">{label}</span>
+      <span className="font-mono text-[10px]" data-luminance-key={luminanceKey}>
+        {label}
+      </span>
     </button>
   )
 }
