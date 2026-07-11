@@ -395,9 +395,9 @@ export function VideoPanel({
   const [scrubbing, setScrubbing] = useState(false)
   const [tooltip, setTooltip] = useState<MomentTooltip | null>(null)
 
-  // Flip an action button's text dark when the video content behind it is
-  // bright — white labels vanish over white footage. Sampled per button, so
-  // buttons over letterbox stay white while overlapping ones flip.
+  // Scrim an action button's label when the video content behind it is bright
+  // — white text vanishes over white footage. Sampled per label, so only the
+  // ones actually over bright content get the box.
   const actionsRegionRef = useRef<HTMLDivElement>(null)
   const lightBackdrops = useBackdropLuminance(
     videoEl,
