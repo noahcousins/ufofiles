@@ -38,7 +38,7 @@ import {
   TYPE_ICONS,
   type ViewData,
 } from "./file-card"
-import { AgencySeal } from "./file-filters"
+import { AgencySeal } from "./filter-controls"
 import { VideoPlayer } from "./video-player"
 
 function DialogVideoPlayer({

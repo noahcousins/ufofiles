@@ -1,4 +1,16 @@
-import { and, asc, count, desc, eq, gte, ilike, lte, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  ilike,
+  lte,
+  type SQL,
+  type SQLWrapper,
+  sql,
+} from "drizzle-orm"
 import { z } from "zod/v4"
 import { cacheKey, withCache } from "@/lib/cache"
 import { db } from "@/lib/db"
@@ -35,6 +47,40 @@ const DATE_RANGES: Record<string, [number, number]> = {
   "2000s": [2000, 2009],
   "1960-2000": [1960, 1999],
   "pre-1960": [0, 1959],
+}
+
+/**
+ * Files having ALL the given tag slugs. `fileId` is the calling query's
+ * file-id expression — `files.id` for drizzle-built queries, `sql`f.id`` for
+ * the raw feed queries.
+ */
+function tagMatchCondition(fileId: SQLWrapper, tagSlugs: string[]) {
+  return sql`${fileId} IN (
+    SELECT ft.file_id FROM file_tags ft
+    JOIN tags t ON t.id = ft.tag_id
+    WHERE t.slug IN (${sql.join(
+      tagSlugs.map((t) => sql`${t}`),
+      sql`, `
+    )})
+    GROUP BY ft.file_id
+    HAVING COUNT(DISTINCT t.slug) = ${tagSlugs.length}
+  )`
+}
+
+/**
+ * The date-range filter's bucket CASE, shared by dateRangeCounts and
+ * videoFeedFacets. NULL years fall through the CASE as NULL — callers filter
+ * them out.
+ */
+function dateBucketCase(incidentYear: SQLWrapper): SQL<string> {
+  return sql<string>`
+    CASE
+      WHEN ${incidentYear} >= 2010 THEN '2010-now'
+      WHEN ${incidentYear} >= 2000 THEN '2000s'
+      WHEN ${incidentYear} >= 1960 THEN '1960-2000'
+      WHEN ${incidentYear} IS NOT NULL THEN 'pre-1960'
+    END
+  `
 }
 
 /** Shared filter-condition builder used by list, typeCounts, etc. */
@@ -89,18 +135,60 @@ function buildFilterConditions(input: {
   }
 
   if (input.tags && input.tags.length > 0) {
-    conditions.push(
-      sql`${files.id} IN (
-        SELECT ft.file_id FROM file_tags ft
-        JOIN tags t ON t.id = ft.tag_id
-        WHERE t.slug IN ${sql.raw(`(${input.tags.map((t) => `'${t.replace(/'/g, "''")}'`).join(",")})`)}
-        GROUP BY ft.file_id
-        HAVING COUNT(DISTINCT t.slug) = ${input.tags.length}
-      )`
-    )
+    conditions.push(tagMatchCondition(files.id, input.tags))
   }
 
   return conditions
+}
+
+// Filters accepted by the video feed + its facet counts. A subset of the
+// browser's filters: no search (no search UI on /watch) and no type (the feed
+// is videos by definition).
+const feedFilterFields = {
+  agency: z.string().max(MAX_AGENCY_LEN).optional(),
+  dateRange: z.enum(["2010-now", "2000s", "1960-2000", "pre-1960"]).optional(),
+  releaseId: z.number().optional(),
+  tags: z.array(z.string().max(MAX_TAG_LEN)).max(MAX_TAGS).optional(),
+}
+
+const feedFilterSchema = z.object(feedFilterFields)
+
+type FeedFilterInput = z.infer<typeof feedFilterSchema>
+
+/**
+ * WHERE clause for the feed queries: baseline eligibility plus the optional
+ * filters. Rendered as raw SQL against the `files f` alias the feed queries
+ * use — the drizzle column refs in buildFilterConditions would render the
+ * unaliased table name.
+ */
+function buildFeedWhere(input: FeedFilterInput) {
+  // All releases are eligible EXCEPT release-1, whose videos were never
+  // transcoded to HLS — they'd appear in the feed and fail to play.
+  // (Transcode + upload release-1, then drop this exclusion.)
+  const conditions = [
+    sql`f.mime_type ILIKE 'video/%'`,
+    sql`f.r2_key IS NOT NULL`,
+    sql`f.r2_key NOT LIKE 'source/release-1/%'`,
+  ]
+
+  if (input.agency) {
+    conditions.push(sql`f.agency ILIKE ${`%${input.agency}%`}`)
+  }
+
+  if (input.dateRange) {
+    const [min, max] = DATE_RANGES[input.dateRange]
+    conditions.push(sql`f.incident_year BETWEEN ${min} AND ${max}`)
+  }
+
+  if (input.releaseId) {
+    conditions.push(sql`f.release_id = ${input.releaseId}`)
+  }
+
+  if (input.tags && input.tags.length > 0) {
+    conditions.push(tagMatchCondition(sql`f.id`, input.tags))
+  }
+
+  return sql.join(conditions, sql` AND `)
 }
 
 // Shared column projection + row mapper for the video feed, so the paginated
@@ -359,14 +447,7 @@ export const filesRouter = router({
         cacheKey("files:dateRangeCounts:v2", input),
         SIX_HOURS,
         async () => {
-          const bucket = sql<string>`
-            CASE
-              WHEN ${files.incidentYear} >= 2010 THEN '2010-now'
-              WHEN ${files.incidentYear} >= 2000 THEN '2000s'
-              WHEN ${files.incidentYear} >= 1960 THEN '1960-2000'
-              WHEN ${files.incidentYear} IS NOT NULL THEN 'pre-1960'
-            END
-          `.as("date_bucket")
+          const bucket = dateBucketCase(files.incidentYear).as("date_bucket")
 
           const conditions = buildFilterConditions({
             ...input,
@@ -445,6 +526,7 @@ export const filesRouter = router({
         cursor: z.number().min(1).nullish(),
         pageSize: z.number().min(1).max(20).default(5),
         seed: z.string().default("default"),
+        ...feedFilterFields,
       })
     )
     .query(async ({ input }) => {
@@ -452,17 +534,23 @@ export const filesRouter = router({
       const page = cursor ?? 1
 
       return withCache(
-        cacheKey("files:videoFeed:v8", { page, pageSize, seed }),
+        cacheKey("files:videoFeed:v9", {
+          page,
+          pageSize,
+          seed,
+          agency: input.agency,
+          dateRange: input.dateRange,
+          releaseId: input.releaseId,
+          tags: input.tags,
+        }),
         SIX_HOURS,
         async () => {
-          // All releases are eligible EXCEPT release-1, whose videos were never
-          // transcoded to HLS — they'd appear in the feed and fail to play.
-          // (Transcode + upload release-1, then drop this exclusion.)
+          const where = buildFeedWhere(input)
+
           const feedQuery = sql`
             SELECT ${feedColumns}
             FROM files f
-            WHERE f.mime_type ILIKE 'video/%' AND f.r2_key IS NOT NULL
-              AND f.r2_key NOT LIKE 'source/release-1/%'
+            WHERE ${where}
             ORDER BY md5(f.id::text || ${seed})
             LIMIT ${pageSize}
             OFFSET ${(page - 1) * pageSize}
@@ -471,8 +559,7 @@ export const filesRouter = router({
           const countQuery = sql`
             SELECT COUNT(*) AS count
             FROM files f
-            WHERE f.mime_type ILIKE 'video/%' AND f.r2_key IS NOT NULL
-              AND f.r2_key NOT LIKE 'source/release-1/%'
+            WHERE ${where}
           `
 
           const items = await db.execute<FeedRow>(feedQuery)
@@ -486,6 +573,90 @@ export const filesRouter = router({
             items: items.map(mapFeedRow),
             total,
             nextCursor: page < totalPages ? page + 1 : undefined,
+          }
+        }
+      )
+    }),
+
+  // Faceted counts for the watch-page filter drawer. Each facet excludes its
+  // own dimension (picking a release still shows the other releases' counts)
+  // while applying the rest, and everything is scoped to feed-eligible videos
+  // — so untranscoded release-1 never shows up as a pickable option.
+  videoFeedFacets: rateLimitedProcedure("query")
+    .input(feedFilterSchema.optional())
+    .query(({ input }) => {
+      // Normalize before keying: a missing input and an empty object must
+      // share one cache key rather than fragmenting into two.
+      const filters = input ?? {}
+
+      return withCache(
+        cacheKey("files:videoFeedFacets:v1", filters),
+        SIX_HOURS,
+        async () => {
+          const releaseRows = await db.execute<{
+            release_id: number
+            count: number | string
+          }>(sql`
+            SELECT f.release_id, COUNT(*) AS count
+            FROM files f
+            WHERE ${buildFeedWhere({ ...filters, releaseId: undefined })}
+            GROUP BY f.release_id
+          `)
+
+          const dateRows = await db.execute<{
+            bucket: string
+            count: number | string
+          }>(sql`
+            SELECT
+              ${dateBucketCase(sql`f.incident_year`)} AS bucket,
+              COUNT(*) AS count
+            FROM files f
+            WHERE ${buildFeedWhere({ ...filters, dateRange: undefined })}
+              AND f.incident_year IS NOT NULL
+            GROUP BY bucket
+          `)
+
+          const tagRows = await db.execute<{
+            slug: string
+            label: string
+            category: string
+            count: number | string
+          }>(sql`
+            SELECT t.slug, t.label, t.category,
+              COUNT(DISTINCT ft.file_id) AS count
+            FROM tags t
+            JOIN file_tags ft ON ft.tag_id = t.id
+            WHERE ft.file_id IN (
+              SELECT f.id FROM files f
+              WHERE ${buildFeedWhere({ ...filters, tags: undefined })}
+            )
+            GROUP BY t.slug, t.label, t.category
+            ORDER BY count DESC
+          `)
+
+          const agencyRows = await db.execute<{ agency: string }>(sql`
+            SELECT DISTINCT f.agency
+            FROM files f
+            WHERE ${buildFeedWhere({ ...filters, agency: undefined })}
+              AND f.agency IS NOT NULL AND f.agency != ''
+            ORDER BY f.agency
+          `)
+
+          return {
+            agencies: agencyRows.map((r) => r.agency),
+            releaseCounts: Object.fromEntries(
+              releaseRows.map((r) => [r.release_id, Number(r.count)])
+            ) as Record<number, number>,
+            dateRangeCounts: dateRows.map((r) => ({
+              bucket: r.bucket,
+              count: Number(r.count),
+            })),
+            tags: tagRows.map((r) => ({
+              slug: r.slug,
+              label: r.label,
+              category: r.category,
+              count: Number(r.count),
+            })),
           }
         }
       )

@@ -13,7 +13,11 @@ const tabs = [
   { href: "/map", label: "Map" },
 ]
 
-export function FeedHeader() {
+export function FeedHeader({
+  filterControl,
+}: {
+  filterControl?: React.ReactNode
+}) {
   const pathname = usePathname()
 
   return (
@@ -40,6 +44,13 @@ export function FeedHeader() {
         <div className="pointer-events-auto absolute inset-y-0 right-3 flex items-center lg:hidden">
           <MobileNav triggerClassName="size-9 text-white/90 hover:text-white" />
         </div>
+
+        {/* Filter drawer trigger, pinned left to mirror the nav control. */}
+        {filterControl && (
+          <div className="pointer-events-auto absolute inset-y-0 left-3 flex items-center">
+            {filterControl}
+          </div>
+        )}
 
         <nav className="pointer-events-auto flex items-center justify-center gap-6 font-mono text-xs uppercase tracking-wide">
           {tabs.map(({ href, label }) => {

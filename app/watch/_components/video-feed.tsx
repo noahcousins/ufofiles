@@ -1,17 +1,58 @@
 "use client"
 
+import { XIcon } from "@phosphor-icons/react"
+import { keepPreviousData } from "@tanstack/react-query"
 import { useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { Button } from "@/components/ui/button"
 import { getVideoThumbUrl } from "@/lib/file-url"
 import { trpc } from "@/lib/trpc/client"
 import { DebugHud } from "./debug-hud"
 import { EndCard } from "./end-card"
 import { FeedAuth } from "./feed-auth"
+import { FeedFilters } from "./feed-filters"
 import { FeedHeader } from "./feed-header"
 import { computeLoadState } from "./preload-window"
+import { useFeedFilters } from "./use-feed-filters"
 import { useScrollDirection } from "./use-scroll-direction"
 import { VideoPanel } from "./video-panel"
 import { createPooledVideo, VIDEO_POOL_SIZE } from "./video-pool"
+
+function FeedEmptyState({
+  hasActiveFilters,
+  onClearFilters,
+}: {
+  hasActiveFilters: boolean
+  onClearFilters: () => void
+}) {
+  return (
+    <div className="flex h-dvh flex-col items-center justify-center gap-6 px-6">
+      <div className="text-center">
+        <p className="font-mono text-lg text-white">
+          {hasActiveFilters
+            ? "No videos match your filters"
+            : "No videos available"}
+        </p>
+        {hasActiveFilters && (
+          <p className="mt-1 font-mono text-sm text-white/50">
+            Try removing a filter or two
+          </p>
+        )}
+      </div>
+      {hasActiveFilters && (
+        <Button
+          className="gap-2"
+          onClick={onClearFilters}
+          size="lg"
+          variant="default"
+        >
+          <XIcon className="size-4" />
+          Clear filters
+        </Button>
+      )}
+    </div>
+  )
+}
 
 export function VideoFeed() {
   const [seed, setSeed] = useState(() => Math.random().toString(36).slice(2))
@@ -92,14 +133,37 @@ export function VideoFeed() {
     }
   }, [])
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage } =
+  const resetFeedPosition = useCallback(() => {
+    containerRef.current?.scrollTo({
+      top: 0,
+      behavior: "instant" as ScrollBehavior,
+    })
+    setActiveIndex(0)
+  }, [])
+
+  const {
+    feedFilters,
+    filters,
+    handlers: filterHandlers,
+    hasActiveFilters,
+    releasesList,
+    waitingForRelease,
+  } = useFeedFilters(resetFeedPosition)
+
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     trpc.files.videoFeed.useInfiniteQuery(
-      { pageSize: 10, seed },
+      { pageSize: 10, seed, ...feedFilters },
       {
         getNextPageParam: (last) => last.nextCursor,
         initialCursor: 1,
+        enabled: !waitingForRelease,
       }
     )
+
+  const facets = trpc.files.videoFeedFacets.useQuery(feedFilters, {
+    placeholderData: keepPreviousData,
+  })
+  const totalVideos = data?.pages[0]?.total ?? null
 
   // A share link (`/watch?v=<id>`) pins that video to the front, then the rest
   // of the feed randomizes from there.
@@ -112,6 +176,7 @@ export function VideoFeed() {
   // Hold the feed until the pinned video resolves, so the shared video is the
   // first thing on screen rather than flashing a random one first.
   const waitingForPinned = pinnedId !== null && pinnedVideo.isLoading
+  const feedPending = waitingForPinned || waitingForRelease || isLoading
 
   const randomized = data?.pages.flatMap((p) => p.items) ?? []
   const dedupedRandom =
@@ -389,12 +454,8 @@ export function VideoFeed() {
 
   const handleShuffle = useCallback(() => {
     setSeed(Math.random().toString(36).slice(2))
-    containerRef.current?.scrollTo({
-      top: 0,
-      behavior: "instant" as ScrollBehavior,
-    })
-    setActiveIndex(0)
-  }, [])
+    resetFeedPosition()
+  }, [resetFeedPosition])
 
   return (
     <div
@@ -427,17 +488,33 @@ export function VideoFeed() {
         </div>
       )}
 
-      <FeedHeader />
+      <FeedHeader
+        filterControl={
+          <FeedFilters
+            facets={facets.data}
+            filters={filters}
+            handlers={filterHandlers}
+            releases={releasesList}
+            totalVideos={totalVideos}
+          />
+        }
+      />
 
       <div className="relative z-10 mx-auto w-full lg:max-w-md">
         {debugHud && <DebugHud />}
 
-        {waitingForPinned ? (
+        {feedPending ? (
           <div className="flex h-dvh items-center justify-center">
             <div className="size-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
           </div>
         ) : (
           <>
+            {allItems.length === 0 && (
+              <FeedEmptyState
+                hasActiveFilters={hasActiveFilters}
+                onClearFilters={filterHandlers.onClearFilters}
+              />
+            )}
             {allItems.map((item, index) => {
               const loadState = computeLoadState(
                 index,

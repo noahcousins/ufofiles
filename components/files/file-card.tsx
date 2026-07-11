@@ -21,7 +21,7 @@ import {
 } from "@/lib/file-url"
 import { formatFileSize } from "@/lib/utils"
 import { FileDialog } from "./file-dialog"
-import { AgencySeal } from "./file-filters"
+import { AgencySeal } from "./filter-controls"
 
 export function getMimeCategory(
   mimeType: string | null
