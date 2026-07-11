@@ -1,7 +1,13 @@
 "use client"
 
 import { Hash, MapPin } from "@phosphor-icons/react"
-import { AnimatePresence, animate, motion, useMotionValue } from "motion/react"
+import {
+  AnimatePresence,
+  animate,
+  motion,
+  useMotionValue,
+  useMotionValueEvent,
+} from "motion/react"
 import {
   type PointerEvent as ReactPointerEvent,
   useCallback,
@@ -22,6 +28,10 @@ const MARQUEE_SPEED = 28
 const MARQUEE_START_DELAY = 2.5
 const MARQUEE_END_DELAY = 1.5
 const MARQUEE_RESUME_DELAY = 10_000
+// Width of the gradient fade on a clipped edge, so truncation reads as "more
+// text this way" instead of a hard cut (same treatment as the browser's
+// type-filter row).
+const MARQUEE_FADE_PX = 24
 
 type MarqueeId = "title" | "tags"
 // Turn order — title scrolls first, then tags.
@@ -141,6 +151,8 @@ function useMarquee<C extends HTMLElement, I extends HTMLElement>(
   const resetRef = useRef<ReturnType<typeof animate> | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
+  const overflowRef = useRef(0)
+
   useEffect(() => {
     const measure = () => {
       const container = containerRef.current
@@ -148,7 +160,9 @@ function useMarquee<C extends HTMLElement, I extends HTMLElement>(
       if (!(container && inner)) {
         return
       }
-      setOverflow(Math.max(0, inner.scrollWidth - container.clientWidth))
+      const next = Math.max(0, inner.scrollWidth - container.clientWidth)
+      overflowRef.current = next
+      setOverflow(next)
     }
     measure()
     const ro = new ResizeObserver(measure)
@@ -160,6 +174,37 @@ function useMarquee<C extends HTMLElement, I extends HTMLElement>(
     }
     return () => ro.disconnect()
   }, [])
+
+  // Which edges currently hide text — drives the fade masks. Fed from the
+  // motion value so the auto-scroll and manual drags both keep the fades
+  // truthful frame to frame.
+  const [clipped, setClipped] = useState({ left: false, right: false })
+  const syncClipped = useCallback((v: number, ov: number) => {
+    setClipped((prev) => {
+      const left = ov > 0 && v < -1
+      const right = ov > 0 && v > 1 - ov
+      return prev.left === left && prev.right === right ? prev : { left, right }
+    })
+  }, [])
+  useMotionValueEvent(x, "change", (v) => syncClipped(v, overflowRef.current))
+  useEffect(() => {
+    syncClipped(x.get(), overflow)
+  }, [overflow, syncClipped, x])
+
+  const maskImage = useMemo(() => {
+    const fadeIn = `transparent, black ${MARQUEE_FADE_PX}px`
+    const fadeOut = `black calc(100% - ${MARQUEE_FADE_PX}px), transparent`
+    if (clipped.left && clipped.right) {
+      return `linear-gradient(to right, ${fadeIn}, ${fadeOut})`
+    }
+    if (clipped.left) {
+      return `linear-gradient(to right, ${fadeIn})`
+    }
+    if (clipped.right) {
+      return `linear-gradient(to right, ${fadeOut})`
+    }
+    return
+  }, [clipped])
 
   useEffect(() => () => clearTimeout(timerRef.current), [])
 
@@ -294,7 +339,7 @@ function useMarquee<C extends HTMLElement, I extends HTMLElement>(
 
   const draggable = overflow > 0
 
-  return { containerRef, innerRef, draggable, onPointerDown, x }
+  return { containerRef, innerRef, draggable, maskImage, onPointerDown, x }
 }
 
 // Single-line title that scrolls end-to-end and back only when the text is
@@ -310,15 +355,19 @@ function MarqueeTitle({
   turn: MarqueeTurn
   sched: MarqueeScheduler
 }) {
-  const { containerRef, innerRef, draggable, onPointerDown, x } = useMarquee<
-    HTMLHeadingElement,
-    HTMLSpanElement
-  >("title", active, turn, sched)
+  const { containerRef, innerRef, draggable, maskImage, onPointerDown, x } =
+    useMarquee<HTMLHeadingElement, HTMLSpanElement>(
+      "title",
+      active,
+      turn,
+      sched
+    )
 
   return (
     <h2
       className="overflow-hidden font-medium text-sm text-white leading-snug [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]"
       ref={containerRef}
+      style={{ maskImage }}
     >
       <motion.span
         className={cn(
@@ -348,13 +397,11 @@ function MarqueeTags({
   turn: MarqueeTurn
   sched: MarqueeScheduler
 }) {
-  const { containerRef, innerRef, draggable, onPointerDown, x } = useMarquee<
-    HTMLDivElement,
-    HTMLDivElement
-  >("tags", active, turn, sched)
+  const { containerRef, innerRef, draggable, maskImage, onPointerDown, x } =
+    useMarquee<HTMLDivElement, HTMLDivElement>("tags", active, turn, sched)
 
   return (
-    <div className="overflow-hidden" ref={containerRef}>
+    <div className="overflow-hidden" ref={containerRef} style={{ maskImage }}>
       <motion.div
         className={cn(
           "flex w-max gap-1.5 will-change-transform",

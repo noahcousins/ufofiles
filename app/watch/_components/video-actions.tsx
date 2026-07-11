@@ -22,9 +22,9 @@ import type { FeedItem } from "./video-panel"
 interface VideoActionsProps {
   item: FeedItem
   // Per-button luminance flags keyed by luminanceKey: true when the video
-  // content behind THAT button's label text is bright, so only text actually
-  // over bright footage flips dark — labels over letterbox stay white (see
-  // use-backdrop-luminance).
+  // content behind THAT button's label text is bright, which puts a dark
+  // scrim behind the (always-white) text — labels over dark footage or
+  // letterbox stay scrimless (see use-backdrop-luminance).
   lightBackdrops: Record<string, boolean>
   onFullscreen: () => void
   onStartClip: () => void
@@ -250,26 +250,21 @@ function ActionButton({
   label: React.ReactNode
   light?: boolean
   // Keys the label <span> for the luminance sampler — the text is the only
-  // part that needs a dynamic color (the icon sits on its own scrim), so only
-  // the text's own backdrop is measured.
+  // part that needs help (the icon sits on its own scrim), so only the text's
+  // own backdrop is measured.
   luminanceKey?: string
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       className={cn(
-        "flex flex-col items-center gap-1 transition-colors",
-        light
-          ? "text-black/80 hover:text-black"
-          : "text-white/80 hover:text-white",
+        "flex flex-col items-center gap-1 text-white/80 transition-colors hover:text-white",
         className
       )}
       type="button"
       {...rest}
     >
       {/* No transition on the active state: the background/color must flip in
-          sync with the icon weight and label text, which swap instantly. The
-          icon keeps its own color — its circle is a scrim of its own, so only
-          the label follows the backdrop luminance. */}
+          sync with the icon weight and label text, which swap instantly. */}
       <div
         className={cn(
           "flex size-10 items-center justify-center rounded-full backdrop-blur-sm",
@@ -278,7 +273,16 @@ function ActionButton({
       >
         {icon}
       </div>
-      <span className="font-mono text-[10px]" data-luminance-key={luminanceKey}>
+      {/* Text stays white; a dark scrim appears behind it over bright footage.
+          The label can straddle the video's edge, so recoloring the text can't
+          work — half would land on the black page background and vanish. */}
+      <span
+        className={cn(
+          "px-1 py-px font-mono text-[10px] transition-colors",
+          light && "bg-black/60 backdrop-blur-sm"
+        )}
+        data-luminance-key={luminanceKey}
+      >
         {label}
       </span>
     </button>

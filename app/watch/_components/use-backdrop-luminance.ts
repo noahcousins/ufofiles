@@ -115,10 +115,11 @@ function readRegions(
 /**
  * Samples the video pixels behind each `[data-luminance-key]` element inside
  * `region` a couple of times per second, and reports per key whether they're
- * light enough that white overlay text would be unreadable — so elements over
- * bright content flip dark while siblings over letterbox stay white. If the
- * canvas is CORS-tainted (native HLS without CORS access) sampling stops for
- * good and every key stays `false` — the existing white-on-dark styling.
+ * light enough that white overlay text would be unreadable — callers use it
+ * to scrim the affected elements while siblings over dark content or
+ * letterbox stay untouched. If the canvas is CORS-tainted (native HLS without
+ * CORS access) sampling stops for good and every key stays `false` — the
+ * plain white-on-dark styling.
  */
 export function useBackdropLuminance(
   video: HTMLVideoElement | null,
