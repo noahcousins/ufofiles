@@ -99,7 +99,7 @@ export function FeedFilters({
   return (
     <Drawer modal={false}>
       <DrawerTrigger className="pointer-events-auto inline-flex h-9 select-none items-center gap-1.5 px-2 font-medium text-white/70 text-xs transition-colors hover:text-white">
-        <FunnelSimple className="size-4" />
+        <FunnelSimple className="size-5" />
         {activeFilterCount > 0 && (
           <span className="inline-flex size-4 items-center justify-center rounded-none bg-white font-mono text-[10px] text-black">
             {activeFilterCount}
