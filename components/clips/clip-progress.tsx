@@ -7,17 +7,20 @@ import {
 } from "@phosphor-icons/react"
 import { AnimatePresence, motion } from "motion/react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import posthog from "posthog-js"
 import { useEffect, useSyncExternalStore } from "react"
 import { Button } from "@/components/ui/button"
 import { useSession } from "@/lib/auth/session-provider"
 import { isMember } from "@/lib/auth-client"
 import { trpc } from "@/lib/trpc/client"
+import { cn } from "@/lib/utils"
 
 // Module store (mirrors components/ui/toast.tsx): a live render tracker for
-// clips you just created. Surfaces queued → rendering → ready in a floating
-// card, then hands you Download / View once the render lands. Mounted once via
-// <ClipProgress/> in the TRPC provider so it survives navigation.
+// clips you just created. Surfaces queued → rendering → ready in a slim banner
+// pinned under the top menu, then hands you Download / View once the render
+// lands. Mounted once via <ClipProgress/> in the TRPC provider so it survives
+// navigation.
 
 export interface ClipProgressEntry {
   clipId: number
@@ -68,6 +71,7 @@ function formatTime(s: number): string {
 const isTerminal = (status: string) => status === "ready" || status === "failed"
 
 export function ClipProgress() {
+  const pathname = usePathname()
   const { data: session } = useSession()
   const active = useSyncExternalStore(subscribe, getSnapshot, () => entries)
   const clipIds = active.map((e) => e.clipId)
@@ -117,13 +121,20 @@ export function ClipProgress() {
   }
 
   return (
-    // Bottom-right corner (clear of the centered <Toaster/> + consent banner and
-    // the feed's centered controls). Height-capped + scrollable so any number of
-    // concurrent renders stack without ever growing off-screen.
-    <div className="pointer-events-none fixed right-4 bottom-6 z-[100] flex max-h-[70vh] w-[calc(100vw-2rem)] max-w-sm flex-col gap-2 overflow-y-auto">
+    // Slim banner tucked under the top menu (out of the way of the video and
+    // the bottom consent banner). The watch page's fixed feed header is a bit
+    // taller than the sticky site header, hence the per-route offset.
+    // Height-capped + scrollable so any number of concurrent renders stack
+    // without ever growing off-screen.
+    <div
+      className={cn(
+        "pointer-events-none fixed inset-x-0 z-[100] flex max-h-[40vh] flex-col items-center gap-1.5 overflow-y-auto px-4",
+        pathname === "/watch" ? "top-[4.25rem]" : "top-16"
+      )}
+    >
       <AnimatePresence>
         {active.map((entry) => (
-          <ClipProgressCard
+          <ClipProgressBanner
             entry={entry}
             key={entry.clipId}
             status={statusOf(entry.clipId)}
@@ -134,7 +145,7 @@ export function ClipProgress() {
   )
 }
 
-function ClipProgressCard({
+function ClipProgressBanner({
   entry,
   status,
 }: {
@@ -155,84 +166,80 @@ function ClipProgressCard({
   return (
     <motion.div
       animate={{ opacity: 1, y: 0 }}
-      className="pointer-events-auto w-full max-w-sm border border-border bg-card p-3 font-mono text-foreground shadow-lg"
-      exit={{ opacity: 0, y: 8 }}
-      initial={{ opacity: 0, y: 12 }}
+      className="pointer-events-auto flex max-w-full items-center gap-2.5 border border-border bg-card/90 py-1.5 pr-1 pl-3 font-mono text-foreground shadow-lg backdrop-blur-sm"
+      exit={{ opacity: 0, y: -8 }}
+      initial={{ opacity: 0, y: -12 }}
       layout
       transition={{ duration: 0.18 }}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="truncate font-medium text-xs">
-            {entry.title ?? "Clip"}
-          </p>
-          <p className="text-[11px] text-muted-foreground tabular-nums">
-            {range}
-          </p>
-        </div>
-        <button
-          aria-label="Dismiss"
-          className="-mt-1 -mr-1 inline-flex size-6 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-          onClick={() => dismissClipProgress(entry.clipId)}
-          type="button"
-        >
-          <XIcon className="size-3.5" />
-        </button>
-      </div>
+      {failed ? (
+        <WarningCircleIcon
+          className="size-3.5 shrink-0 text-destructive"
+          weight="fill"
+        />
+      ) : (
+        !ready && (
+          <span className="size-3 shrink-0 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
+        )
+      )}
 
-      <div className="mt-2.5">
-        {ready && (
-          <div className="flex items-center gap-2">
-            <a
-              className="flex-1"
-              download
-              href={downloadUrl ?? undefined}
-              onClick={() =>
-                posthog.capture("clip_progress_downloaded", {
-                  clip_id: entry.clipId,
-                })
-              }
-            >
-              <Button
-                className="w-full gap-1.5"
-                disabled={!downloadUrl}
-                size="sm"
-              >
-                <DownloadSimpleIcon className="size-3.5" />
-                Download
-              </Button>
-            </a>
-            <Link
-              className="flex-1"
-              href={`/library?tab=clips&clip=${entry.clipId}`}
-              onClick={() => {
-                posthog.capture("clip_progress_viewed", {
-                  clip_id: entry.clipId,
-                })
-                dismissClipProgress(entry.clipId)
-              }}
-            >
-              <Button className="w-full" size="sm" variant="outline">
-                View
-              </Button>
-            </Link>
-          </div>
-        )}
+      <span className="min-w-0 truncate text-[11px]">
+        <span className="font-medium">{entry.title ?? "Clip"}</span>
+        <span className="ml-2 text-muted-foreground tabular-nums">{range}</span>
+      </span>
 
-        {failed && (
-          <span className="flex items-center gap-1.5 text-[11px] text-destructive">
-            <WarningCircleIcon className="size-3.5" weight="fill" />
-            Render failed
-          </span>
-        )}
+      {ready && (
+        <span className="flex shrink-0 items-center gap-1">
+          <a
+            download
+            href={downloadUrl ?? undefined}
+            onClick={() =>
+              posthog.capture("clip_progress_downloaded", {
+                clip_id: entry.clipId,
+              })
+            }
+          >
+            <Button className="gap-1.5" disabled={!downloadUrl} size="xs">
+              <DownloadSimpleIcon className="size-3.5" />
+              Download
+            </Button>
+          </a>
+          <Link
+            href={`/library?tab=clips&clip=${entry.clipId}`}
+            onClick={() => {
+              posthog.capture("clip_progress_viewed", {
+                clip_id: entry.clipId,
+              })
+              dismissClipProgress(entry.clipId)
+            }}
+          >
+            <Button size="xs" variant="ghost">
+              View
+            </Button>
+          </Link>
+        </span>
+      )}
 
-        {!(ready || failed) && (
-          <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <span className="size-3 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-foreground" />
-            {status === "processing" ? "Processing…" : "Queued…"}
-          </span>
-        )}
-      </div>
+      {failed && (
+        <span className="shrink-0 text-[11px] text-destructive">
+          Render failed
+        </span>
+      )}
+
+      {!(ready || failed) && (
+        <span className="shrink-0 text-[11px] text-muted-foreground">
+          {status === "processing" ? "Processing…" : "Queued…"}
+        </span>
+      )}
+
+      <button
+        aria-label="Dismiss"
+        className="inline-flex size-6 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+        onClick={() => dismissClipProgress(entry.clipId)}
+        type="button"
+      >
+        <XIcon className="size-3.5" />
+      </button>
     </motion.div>
   )
 }
