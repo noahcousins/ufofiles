@@ -9,7 +9,7 @@ interface PdfManifestEntry {
 
 type PdfManifest = Record<string, PdfManifestEntry>
 
-const KNOWN_RELEASES = ["release-1", "release-2"]
+const KNOWN_RELEASES = ["release-1", "release-2", "release-3", "release-4"]
 
 let manifestPromise: Promise<PdfManifest> | null = null
 let manifestData: PdfManifest | null = null

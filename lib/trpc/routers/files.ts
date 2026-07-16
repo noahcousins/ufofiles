@@ -162,13 +162,9 @@ type FeedFilterInput = z.infer<typeof feedFilterSchema>
  * unaliased table name.
  */
 function buildFeedWhere(input: FeedFilterInput) {
-  // All releases are eligible EXCEPT release-1, whose videos were never
-  // transcoded to HLS — they'd appear in the feed and fail to play.
-  // (Transcode + upload release-1, then drop this exclusion.)
   const conditions = [
     sql`f.mime_type ILIKE 'video/%'`,
     sql`f.r2_key IS NOT NULL`,
-    sql`f.r2_key NOT LIKE 'source/release-1/%'`,
   ]
 
   if (input.agency) {
@@ -304,7 +300,7 @@ export const filesRouter = router({
       const page = cursor ?? 1
 
       return withCache(
-        cacheKey("files:list:v8", {
+        cacheKey("files:list:v9", {
           search: input.search,
           agency: input.agency,
           type: input.type,
@@ -490,7 +486,7 @@ export const filesRouter = router({
   tags: rateLimitedProcedure("query")
     .input(crossFilterInput)
     .query(async ({ input }) =>
-      withCache(cacheKey("files:tags:v2", input), SIX_HOURS, async () => {
+      withCache(cacheKey("files:tags:v3", input), SIX_HOURS, async () => {
         const conditions = buildFilterConditions({
           ...input,
           tags: undefined,
@@ -534,7 +530,7 @@ export const filesRouter = router({
       const page = cursor ?? 1
 
       return withCache(
-        cacheKey("files:videoFeed:v9", {
+        cacheKey("files:videoFeed:v10", {
           page,
           pageSize,
           seed,
@@ -580,8 +576,7 @@ export const filesRouter = router({
 
   // Faceted counts for the watch-page filter drawer. Each facet excludes its
   // own dimension (picking a release still shows the other releases' counts)
-  // while applying the rest, and everything is scoped to feed-eligible videos
-  // — so untranscoded release-1 never shows up as a pickable option.
+  // while applying the rest, and everything is scoped to feed-eligible videos.
   videoFeedFacets: rateLimitedProcedure("query")
     .input(feedFilterSchema.optional())
     .query(({ input }) => {
@@ -590,7 +585,7 @@ export const filesRouter = router({
       const filters = input ?? {}
 
       return withCache(
-        cacheKey("files:videoFeedFacets:v1", filters),
+        cacheKey("files:videoFeedFacets:v2", filters),
         SIX_HOURS,
         async () => {
           const releaseRows = await db.execute<{
@@ -668,7 +663,7 @@ export const filesRouter = router({
     .input(z.object({ id: z.number().int().positive() }))
     .query(({ input }) =>
       withCache(
-        cacheKey("files:feedVideoById:v5", { id: input.id }),
+        cacheKey("files:feedVideoById:v6", { id: input.id }),
         SIX_HOURS,
         async () => {
           const rows = await db.execute<FeedRow>(sql`
@@ -677,7 +672,6 @@ export const filesRouter = router({
             WHERE f.id = ${input.id}
               AND f.mime_type ILIKE 'video/%'
               AND f.r2_key IS NOT NULL
-              AND f.r2_key NOT LIKE 'source/release-1/%'
             LIMIT 1
           `)
           const row = rows[0]

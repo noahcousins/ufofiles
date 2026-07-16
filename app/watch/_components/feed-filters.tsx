@@ -91,7 +91,7 @@ export function FeedFilters({
     (agency ? 1 : 0) + (dateRange ? 1 : 0) + (release ? 1 : 0) + (tag ? 1 : 0)
 
   // Only releases with feed-eligible videos under the current cross-filters —
-  // hides untranscoded release-1 and any dead-end combination outright.
+  // hides any dead-end combination outright.
   const eligibleReleases = releaseCounts
     ? releases.filter((r) => (releaseCounts[r.id] ?? 0) > 0)
     : releases
