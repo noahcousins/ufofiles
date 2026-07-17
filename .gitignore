@@ -40,7 +40,7 @@ ufo-files/
 .wrangler/
 
 docs/
-scripts/test/
+scripts/
 
 .trigger/
 
