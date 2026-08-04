@@ -63,6 +63,12 @@ function MorphingDialogProvider({
   const setIsOpen: React.Dispatch<React.SetStateAction<boolean>> = useCallback(
     (value) => {
       const next = typeof value === "function" ? value(isOpen) : value
+      if (!next) {
+        // Bring the trigger back into view before the exit morph measures its
+        // target, so the dialog closes into a visible card instead of flying
+        // offscreen (e.g. after prev/next-ing far from where it was opened).
+        triggerRef.current?.scrollIntoView({ block: "nearest" })
+      }
       if (!isControlled) {
         setUncontrolledOpen(next)
       }
@@ -83,7 +89,9 @@ function MorphingDialogProvider({
 
   return (
     <MorphingDialogContext.Provider value={contextValue}>
-      <MotionConfig transition={transition}>{children}</MotionConfig>
+      <MotionConfig reducedMotion="user" transition={transition}>
+        {children}
+      </MotionConfig>
     </MorphingDialogContext.Provider>
   )
 }
@@ -121,7 +129,12 @@ function MorphingDialogTrigger({
   style,
   triggerRef,
 }: MorphingDialogTriggerProps) {
-  const { setIsOpen, isOpen, uniqueId } = useMorphingDialog()
+  const {
+    setIsOpen,
+    isOpen,
+    uniqueId,
+    triggerRef: contextTriggerRef,
+  } = useMorphingDialog()
 
   const handleClick = useCallback(() => {
     setIsOpen(!isOpen)
@@ -147,7 +160,7 @@ function MorphingDialogTrigger({
       layoutId={`dialog-${uniqueId}`}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
-      ref={triggerRef}
+      ref={triggerRef ?? contextTriggerRef}
       style={style}
     >
       {children}
@@ -183,6 +196,17 @@ function MorphingDialogContent({
           return
         }
 
+        // Focus starts on the container itself; route the first Tab into the
+        // trap instead of letting it escape to the page behind the dialog.
+        if (document.activeElement === containerRef.current) {
+          event.preventDefault()
+          ;(event.shiftKey
+            ? lastFocusableElement
+            : firstFocusableElement
+          ).focus()
+          return
+        }
+
         if (event.shiftKey) {
           if (document.activeElement === firstFocusableElement) {
             event.preventDefault()
@@ -212,10 +236,21 @@ function MorphingDialogContent({
         setLastFocusableElement(
           focusableElements.item(focusableElements.length - 1) as HTMLElement
         )
-        ;(focusableElements[0] as HTMLElement).focus()
       }
+      // Focus the dialog itself rather than its first button, so opening
+      // doesn't paint a focus ring on the close control.
+      containerRef.current?.focus()
     } else {
-      triggerRef.current?.focus()
+      // Restore focus to the trigger only if this dialog still owns it —
+      // during prev/next the incoming dialog may have already taken focus,
+      // and stealing it back would drop keyboard users on a background card.
+      const active = document.activeElement
+      if (
+        active === document.body ||
+        containerRef.current?.contains(active)
+      ) {
+        triggerRef.current?.focus()
+      }
     }
   }, [isOpen, triggerRef])
 
@@ -267,11 +302,12 @@ function MorphingDialogContent({
       aria-describedby={`motion-ui-morphing-dialog-description-${uniqueId}`}
       aria-labelledby={`motion-ui-morphing-dialog-title-${uniqueId}`}
       aria-modal="true"
-      className={cn("overflow-hidden", className)}
+      className={cn("overflow-hidden outline-none", className)}
       layoutId={`dialog-${uniqueId}`}
       ref={containerRef}
       role="dialog"
       style={style}
+      tabIndex={-1}
     >
       {children}
     </motion.div>

@@ -157,6 +157,18 @@ export function FileBrowser() {
   // Captured on mount so clicking around the grid doesn't re-sort it.
   const priorityIdRef = useRef(filters.fileId)
 
+  // Prev/next inside the open viewer moves between two cards' dialogs, which
+  // would replay the full card↔fullscreen morph twice per step. Swap instantly
+  // when fileId goes id→id; only true open (null→id) and close (id→null) morph.
+  const prevOpenFileIdRef = useRef(filters.fileId)
+  const isViewerNavigation =
+    prevOpenFileIdRef.current != null &&
+    filters.fileId != null &&
+    prevOpenFileIdRef.current !== filters.fileId
+  useEffect(() => {
+    prevOpenFileIdRef.current = filters.fileId
+  })
+
   const {
     data,
     isLoading,
@@ -460,6 +472,7 @@ export function FileBrowser() {
                 <FileCard
                   currentIndex={index}
                   file={file}
+                  instantTransition={isViewerNavigation}
                   isOpen={filters.fileId === file.id}
                   key={file.id}
                   nextFileId={

@@ -216,6 +216,7 @@ export function FileCard({
   currentIndex,
   totalFiles,
   viewData,
+  instantTransition,
 }: {
   file: FileItem
   isOpen: boolean
@@ -226,6 +227,8 @@ export function FileCard({
   currentIndex: number
   totalFiles: number
   viewData?: ViewData
+  /** Skip the card↔fullscreen morph (used when swapping files inside the open viewer). */
+  instantTransition?: boolean
 }) {
   const category = getMimeCategory(file.mimeType)
   const previewSrc = getPreviewSrc(file.r2Key)
@@ -241,7 +244,11 @@ export function FileCard({
     <MorphingDialog
       onOpenChange={onOpenChange}
       open={isOpen}
-      transition={{ type: "spring", stiffness: 200, damping: 24 }}
+      transition={
+        instantTransition
+          ? { duration: 0 }
+          : { type: "spring", stiffness: 200, damping: 24 }
+      }
     >
       <MorphingDialogTrigger className="flex flex-col overflow-hidden border border-border bg-card text-left transition-colors hover:border-ring/40 hover:bg-muted/30">
         {category === "VID" && file.r2Key ? (
