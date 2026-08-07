@@ -7,10 +7,10 @@ import {
   CaretRightIcon,
   DownloadSimpleIcon,
 } from "@phosphor-icons/react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import posthog from "posthog-js"
 import { useCallback, useEffect } from "react"
+import { canGoBackInApp } from "@/components/navigation-tracker"
 import { Button } from "@/components/ui/button"
 import { prefetchIfNew } from "@/lib/file-cache"
 import {
@@ -111,6 +111,14 @@ export function FileViewer({
     }
   }, [prevFileKey, nextFileKey])
 
+  const goBack = useCallback(() => {
+    if (canGoBackInApp()) {
+      router.back()
+    } else {
+      router.push("/")
+    }
+  }, [router])
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (
@@ -124,10 +132,10 @@ export function FileViewer({
       } else if (e.key === "ArrowRight" && nextFileKey) {
         router.push(getFilePagePath(nextFileKey))
       } else if (e.key === "Escape") {
-        router.push("/")
+        goBack()
       }
     },
-    [router, prevFileKey, nextFileKey]
+    [router, prevFileKey, nextFileKey, goBack]
   )
 
   useEffect(() => {
@@ -146,18 +154,23 @@ export function FileViewer({
         )}
       >
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <Link href="/">
-            <Button className="sm:hidden" size="sm" variant="outline">
-              <ArrowLeftIcon className="size-3.5" />
-            </Button>
-            <Button
-              className="hidden sm:inline-flex"
-              size="sm"
-              variant="outline"
-            >
-              Back
-            </Button>
-          </Link>
+          <Button
+            aria-label="Back"
+            className="sm:hidden"
+            onClick={goBack}
+            size="sm"
+            variant="outline"
+          >
+            <ArrowLeftIcon className="size-3.5" />
+          </Button>
+          <Button
+            className="hidden sm:inline-flex"
+            onClick={goBack}
+            size="sm"
+            variant="outline"
+          >
+            Back
+          </Button>
           <div className="min-w-0">
             <p className="max-w-full truncate font-medium text-xs">
               {getFileName(fileKey)}

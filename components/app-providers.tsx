@@ -7,6 +7,7 @@ import { EmailVerificationProvider } from "@/components/auth/email-verification-
 import { ClipProgress } from "@/components/clips/clip-progress"
 import { PendingClipReplay } from "@/components/clips/pending-clip-replay"
 import { ConsentProvider } from "@/components/consent/consent-provider"
+import { NavigationTracker } from "@/components/navigation-tracker"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toast"
 import { SessionProvider } from "@/lib/auth/session-provider"
@@ -17,7 +18,8 @@ import { TRPCProvider } from "@/lib/trpc/provider"
  * Order matters: session (server-seeded) → consent → URL state → tRPC →
  * the auth gates (sign-in dialog + email verification) → theme. The
  * mount-only globals (clip replay/progress, toasts) live alongside, inside the
- * tRPC client so they can use it.
+ * tRPC client so they can use it. The navigation tracker depends on nothing, so
+ * it sits at the top.
  */
 export function AppProviders({
   initialSession,
@@ -30,6 +32,7 @@ export function AppProviders({
 }) {
   return (
     <SessionProvider initialSession={initialSession}>
+      <NavigationTracker />
       <ConsentProvider consentRequired={consentRequired}>
         <NuqsAdapter>
           <TRPCProvider>
