@@ -35,7 +35,10 @@ function parseTimestamp(ts: string): number {
 }
 
 export function parseVideoMoments(description: string): ParsedMoment[] {
-  const marker = description.indexOf("Video Description")
+  // Case-insensitive: release 1–4 use "Video Description", release 5 switched
+  // to lowercase "Video description:". Match either; slice from the original
+  // string so the extracted moment text keeps its casing.
+  const marker = description.toLowerCase().indexOf("video description")
   if (marker === -1) {
     return []
   }
