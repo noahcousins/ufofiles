@@ -19,11 +19,27 @@ import { ScrollUpsellDialog } from "./scroll-upsell-dialog"
 const PAGE_SIZE = 48
 
 /**
- * Guests get the first page plus one infinite-scroll load. Every scroll past
- * that point opens the sign-up modal instead of fetching. Signed-in users are
- * never gated.
+ * Guests can browse this many files into the current result set. Scrolling
+ * past the Nth card opens the sign-up modal (and further pages stop loading)
+ * until they sign in. Depth is measured against the current results, so a
+ * filter or search change starts the count over instead of firing the gate
+ * on the freshly-narrowed list. Signed-in users are never gated.
  */
-const GUEST_PAGE_LIMIT = 2
+const GUEST_FILE_LIMIT = 72
+
+/**
+ * Cards rendered past the limit for guests, faded out under the gradient and
+ * inert. One desktop row: enough to show the archive continues, without
+ * handing over anything usable.
+ */
+const GUEST_FADE_CARDS = 4
+
+/**
+ * Depth milestones reported to PostHog for every visitor (guest or not), once
+ * each per result set. Gives the browse-depth funnel independently of where
+ * the gate happens to sit, so the limit can be tuned later with evidence.
+ */
+const DEPTH_MILESTONES = [48, 72, 96]
 
 const filterParsers = {
   search: parseAsString.withDefault(""),
@@ -139,58 +155,82 @@ export function FileBrowser() {
   // Captured on mount so clicking around the grid doesn't re-sort it.
   const priorityIdRef = useRef(filters.fileId)
 
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    trpc.files.list.useInfiniteQuery(
-      {
-        priorityId: priorityIdRef.current ?? undefined,
-        search: searchParams.get("search") || undefined,
-        agency: searchParams.get("agency") || undefined,
-        type:
-          (searchParams.get("type") as "image" | "video" | "pdf" | "other") ||
-          undefined,
-        dateRange:
-          (searchParams.get("dateRange") as
-            | "2010-now"
-            | "2000s"
-            | "1960-2000"
-            | "pre-1960") || undefined,
-        releaseId: selectedReleaseId,
-        tags: searchParams.get("tag")
-          ? searchParams.get("tag")!.split(",")
-          : undefined,
-        pageSize: PAGE_SIZE,
-        sortBy:
-          (searchParams.get("sort") as
-            | "newest"
-            | "oldest"
-            | "most-views"
-            | "least-views") || "most-views",
-      },
-      {
-        getNextPageParam: (lastPage) => lastPage.nextCursor,
-        placeholderData: keepPreviousData,
-      }
-    )
+  const {
+    data,
+    isLoading,
+    isPlaceholderData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = trpc.files.list.useInfiniteQuery(
+    {
+      priorityId: priorityIdRef.current ?? undefined,
+      search: searchParams.get("search") || undefined,
+      agency: searchParams.get("agency") || undefined,
+      type:
+        (searchParams.get("type") as "image" | "video" | "pdf" | "other") ||
+        undefined,
+      dateRange:
+        (searchParams.get("dateRange") as
+          | "2010-now"
+          | "2000s"
+          | "1960-2000"
+          | "pre-1960") || undefined,
+      releaseId: selectedReleaseId,
+      tags: searchParams.get("tag")
+        ? searchParams.get("tag")!.split(",")
+        : undefined,
+      pageSize: PAGE_SIZE,
+      sortBy:
+        (searchParams.get("sort") as
+          | "newest"
+          | "oldest"
+          | "most-views"
+          | "least-views") || "most-views",
+    },
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      placeholderData: keepPreviousData,
+    }
+  )
 
   const allItems = (data?.pages.flatMap((p) => p.items) ?? []).filter(
     (item, _i, arr) => arr.findIndex((f) => f.id === item.id) === _i
   )
   const total = data?.pages[0]?.total ?? null
+  const loadedCount = allItems.length
 
   // Guest scroll gate. While the session is still resolving we neither fetch
   // nor gate, so a signed-in user never sees the modal flash on load.
   const { data: session, isPending: sessionPending } = useSession()
   const openAuth = useAuthDialog()
-  const loadedPages = data?.pages.length ?? 0
-  const guestGated =
-    !(session || sessionPending) &&
-    Boolean(hasNextPage) &&
-    loadedPages >= GUEST_PAGE_LIMIT
+  const isGuest = !(session || sessionPending)
 
   const [upsellOpen, setUpsellOpen] = useState(false)
-  // Re-arms once the guest scrolls back up, so dismissing the modal doesn't
-  // reopen it on the very next scroll tick while they're still at the bottom.
+  // The gate is edge-triggered: it fires when a scroll carries the guest
+  // across the limit, then disarms until they're back above it. Dismissing
+  // the modal therefore doesn't reopen it on the next scroll tick, and a
+  // filter change (which disarms below) never fires it on the narrowed list
+  // just because the page was already scrolled deep.
   const upsellArmedRef = useRef(true)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const mountedAtRef = useRef(Date.now())
+  // Milestones already reported for the current result set.
+  const milestonesSentRef = useRef(new Set<number>())
+  const resultKey = JSON.stringify([
+    searchParams.get("search"),
+    searchParams.get("agency"),
+    searchParams.get("type"),
+    searchParams.get("dateRange"),
+    selectedReleaseId,
+    searchParams.get("tag"),
+    searchParams.get("sort"),
+  ])
+  // biome-ignore lint/correctness/useExhaustiveDependencies: resultKey is the trigger, not an input — every new result set restarts the depth count
+  useEffect(() => {
+    milestonesSentRef.current = new Set()
+    upsellArmedRef.current = false
+  }, [resultKey])
 
   const openUpsell = useCallback(
     (mode: "signin" | "signup") => {
@@ -201,38 +241,73 @@ export function FileBrowser() {
     [openAuth]
   )
 
+  // The paywall: guests get the limit plus a faded, inert row, and nothing
+  // past that reaches the DOM. Only kicks in once the results actually exceed
+  // the limit, so short result sets never show a fade.
+  const guestWall = isGuest && allItems.length > GUEST_FILE_LIMIT
+  const visibleItems = guestWall
+    ? allItems.slice(0, GUEST_FILE_LIMIT + GUEST_FADE_CARDS)
+    : allItems
+  // What the file viewer's next/prev arrows may walk: never past the wall.
+  const navItems = guestWall ? allItems.slice(0, GUEST_FILE_LIMIT) : allItems
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: loadedCount re-runs the handler after the grid resizes; see the comment below
   useEffect(() => {
     function handleScroll() {
-      if (!hasNextPage || isFetchingNextPage || sessionPending) {
+      // While a filter change is in flight the grid still shows the previous
+      // results (keepPreviousData); depth against those would be wrong.
+      if (sessionPending || isPlaceholderData) {
+        return
+      }
+      const filesSeen = countFilesSeen(gridRef.current)
+      const secondsOnPage = Math.round(
+        (Date.now() - mountedAtRef.current) / 1000
+      )
+
+      reportDepthMilestones(milestonesSentRef.current, filesSeen, {
+        seconds_on_page: secondsOnPage,
+        signed_in: Boolean(session),
+      })
+
+      if (isGuest && filesSeen >= GUEST_FILE_LIMIT) {
+        if (!upsellArmedRef.current) {
+          return
+        }
+        upsellArmedRef.current = false
+        posthog.capture("scroll_upsell_shown", {
+          files_seen: filesSeen,
+          seconds_on_page: secondsOnPage,
+          source: "scroll",
+        })
+        setUpsellOpen(true)
+        return
+      }
+      upsellArmedRef.current = true
+
+      if (!hasNextPage || isFetchingNextPage) {
         return
       }
       const scrollBottom = window.innerHeight + window.scrollY
-      if (scrollBottom < document.body.offsetHeight - 400) {
-        upsellArmedRef.current = true
-        return
-      }
-      if (!guestGated) {
+      if (scrollBottom >= document.body.offsetHeight - 400) {
         fetchNextPage()
-        return
       }
-      if (!upsellArmedRef.current) {
-        return
-      }
-      upsellArmedRef.current = false
-      posthog.capture("scroll_upsell_shown", { loaded_pages: loadedPages })
-      setUpsellOpen(true)
     }
 
     window.addEventListener("scroll", handleScroll, { passive: true })
+    // Also re-evaluate whenever the grid changes size: a filter that shrinks
+    // the results doesn't fire a scroll event even though the viewport is now
+    // at (or past) the new bottom.
     handleScroll()
     return () => window.removeEventListener("scroll", handleScroll)
   }, [
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
-    guestGated,
+    isGuest,
+    session,
     sessionPending,
-    loadedPages,
+    isPlaceholderData,
+    loadedCount,
   ])
 
   const fileIds = allItems.map((f) => f.id)
@@ -372,44 +447,78 @@ export function FileBrowser() {
             No files found.
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:grid-cols-4">
-            {allItems.map((file, index) => (
-              <FileCard
-                currentIndex={index}
-                file={file}
-                isOpen={filters.fileId === file.id}
-                key={file.id}
-                nextFileId={
-                  index < allItems.length - 1 ? allItems[index + 1].id : null
-                }
-                onNavigate={(fileId) => {
-                  recordView.mutate({ fileId })
-                  setFilters({ fileId })
-                }}
-                onOpenChange={(open) => {
-                  if (open) {
-                    recordView.mutate({ fileId: file.id })
-                    posthog.capture("file_opened", {
-                      file_id: file.id,
-                      file_title: file.title,
-                      file_agency: file.agency,
-                      file_type: file.mimeType,
-                    })
+          <div
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:grid-cols-4"
+            ref={gridRef}
+          >
+            {visibleItems.map((file, index) => {
+              const card = (
+                <FileCard
+                  currentIndex={index}
+                  file={file}
+                  isOpen={filters.fileId === file.id}
+                  key={file.id}
+                  nextFileId={
+                    index + 1 < navItems.length ? navItems[index + 1].id : null
                   }
-                  setFilters({ fileId: open ? file.id : null })
-                }}
-                prevFileId={index > 0 ? allItems[index - 1].id : null}
-                totalFiles={total ?? allItems.length}
-                viewData={viewCounts?.[file.id]}
-              />
-            ))}
+                  onNavigate={(fileId) => {
+                    recordView.mutate({ fileId })
+                    setFilters({ fileId })
+                  }}
+                  onOpenChange={(open) => {
+                    if (open) {
+                      recordView.mutate({ fileId: file.id })
+                      posthog.capture("file_opened", {
+                        file_id: file.id,
+                        file_title: file.title,
+                        file_agency: file.agency,
+                        file_type: file.mimeType,
+                      })
+                    }
+                    setFilters({ fileId: open ? file.id : null })
+                  }}
+                  prevFileId={
+                    index > 0 && index < navItems.length
+                      ? navItems[index - 1].id
+                      : null
+                  }
+                  totalFiles={total ?? allItems.length}
+                  viewData={viewCounts?.[file.id]}
+                />
+              )
+              // Past the limit: visible under the fade, but inert.
+              return guestWall && index >= GUEST_FILE_LIMIT ? (
+                <div
+                  aria-hidden
+                  className="pointer-events-none select-none"
+                  inert
+                  key={file.id}
+                >
+                  {card}
+                </div>
+              ) : (
+                card
+              )
+            })}
           </div>
         )}
 
-        {isFetchingNextPage && (
-          <div className="flex justify-center py-8">
-            <Spinner className="text-lg" />
-          </div>
+        {guestWall ? (
+          <GuestWall
+            onOpen={() => {
+              // Disarm so closing the modal (still at the bottom) doesn't
+              // let the scroll trigger reopen it immediately.
+              upsellArmedRef.current = false
+              posthog.capture("scroll_upsell_shown", { source: "wall" })
+              setUpsellOpen(true)
+            }}
+          />
+        ) : (
+          isFetchingNextPage && (
+            <div className="flex justify-center py-8">
+              <Spinner className="text-lg" />
+            </div>
+          )
         )}
       </div>
 
@@ -418,7 +527,9 @@ export function FileBrowser() {
         onOpenChange={setUpsellOpen}
         onSignUp={() => openUpsell("signup")}
         open={upsellOpen}
-        remaining={total === null ? null : total - allItems.length}
+        remaining={
+          total === null ? null : total - Math.min(total, GUEST_FILE_LIMIT)
+        }
       />
     </>
   )
@@ -440,5 +551,65 @@ export function FileBrowserSkeleton() {
         </div>
       </div>
     </>
+  )
+}
+
+/** Fire each unreached milestone at or below `filesSeen`, once per result set. */
+function reportDepthMilestones(
+  sent: Set<number>,
+  filesSeen: number,
+  props: { seconds_on_page: number; signed_in: boolean }
+) {
+  for (const milestone of DEPTH_MILESTONES) {
+    if (filesSeen >= milestone && !sent.has(milestone)) {
+      sent.add(milestone)
+      posthog.capture("browse_depth_reached", { files: milestone, ...props })
+    }
+  }
+}
+
+/**
+ * How many cards the viewport has reached: the count of grid children whose
+ * top edge is above the bottom of the window. Children are in DOM order and
+ * laid out top-to-bottom, so the scan stops at the first one still below.
+ */
+function countFilesSeen(grid: HTMLDivElement | null): number {
+  if (!grid) {
+    return 0
+  }
+  const limit = window.innerHeight
+  let seen = 0
+  for (const child of grid.children) {
+    if (child.getBoundingClientRect().top >= limit) {
+      break
+    }
+    seen++
+  }
+  return seen
+}
+
+/**
+ * Newspaper-style cut-off under the guest grid: a gradient that fades the
+ * inert overflow row into the background, then a single line back into the
+ * sign-up modal. The grid itself simply ends here — nothing past the limit
+ * is rendered, so there is nothing further to scroll to.
+ */
+function GuestWall({ onOpen }: { onOpen: () => void }) {
+  return (
+    <div className="relative">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 -top-80 h-80 bg-gradient-to-b from-transparent via-background/80 to-background"
+      />
+      <div className="relative flex justify-center pt-2 pb-10">
+        <button
+          className="text-muted-foreground text-sm underline-offset-4 transition-colors hover:text-foreground hover:underline"
+          onClick={onOpen}
+          type="button"
+        >
+          Sign up to keep browsing
+        </button>
+      </div>
+    </div>
   )
 }
