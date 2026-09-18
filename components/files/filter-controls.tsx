@@ -84,8 +84,30 @@ export function toggleTagParam(currentCsv: string, slug: string) {
   return { added, value: next.length > 0 ? next.join(",") : null }
 }
 
+/**
+ * The flag stands in for "no seal" — both the "All agencies" option and any
+ * agency we have no artwork for. It is inset inside a seal-sized box so the
+ * wide flag reads at the same visual weight as the round seals beside it.
+ */
+export function UsFlag({ alt = "US Flag" }: { alt?: string }) {
+  return (
+    <span className="flex size-6 shrink-0 items-center justify-center">
+      <Image
+        alt={alt}
+        className="size-4 object-contain"
+        height={48}
+        src="/img/US-Flag.png"
+        width={48}
+      />
+    </span>
+  )
+}
+
 export function AgencySeal({ agency }: { agency: string }) {
-  const src = AGENCY_SEALS[agency] ?? "/img/US-Flag.png"
+  const src = AGENCY_SEALS[agency]
+  if (!src) {
+    return <UsFlag alt={`${agency} seal`} />
+  }
   return (
     <Image
       alt={`${agency} seal`}
@@ -172,15 +194,7 @@ export function AgencySelect({
             </>
           ) : (
             <>
-              <span className="flex size-6 shrink-0 items-center justify-center">
-                <Image
-                  alt="US Flag"
-                  className="size-4 object-contain"
-                  height={48}
-                  src="/img/US-Flag.png"
-                  width={48}
-                />
-              </span>
+              <UsFlag />
               All agencies
             </>
           )}
@@ -188,15 +202,7 @@ export function AgencySelect({
       </SelectTrigger>
       <SelectContent alignItemWithTrigger={false}>
         <SelectItem value="all">
-          <span className="flex size-6 shrink-0 items-center justify-center">
-            <Image
-              alt="US Flag"
-              className="size-4 object-contain"
-              height={48}
-              src="/img/US-Flag.png"
-              width={48}
-            />
-          </span>
+          <UsFlag />
           All agencies
         </SelectItem>
         {agencies.map((a) => (
