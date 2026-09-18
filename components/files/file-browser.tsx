@@ -5,15 +5,25 @@ import { useSearchParams } from "next/navigation"
 import { parseAsInteger, parseAsString, useQueryStates } from "nuqs"
 import posthog from "posthog-js"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useAuthDialog } from "@/components/auth/auth-dialog-provider"
 import { Header } from "@/components/layout/header"
 import { Spinner } from "@/components/ui/spinner"
+import { useSession } from "@/lib/auth/session-provider"
 import { loadManifest } from "@/lib/file-cache"
 import { trpc } from "@/lib/trpc/client"
 import { FileCard, SkeletonCard } from "./file-card"
 import { FileFilters, FileFiltersSkeleton } from "./file-filters"
 import { toggleTagParam } from "./filter-controls"
+import { ScrollUpsellDialog } from "./scroll-upsell-dialog"
 
 const PAGE_SIZE = 48
+
+/**
+ * Guests get the first page plus one infinite-scroll load. Every scroll past
+ * that point opens the sign-up modal instead of fetching. Signed-in users are
+ * never gated.
+ */
+const GUEST_PAGE_LIMIT = 2
 
 const filterParsers = {
   search: parseAsString.withDefault(""),
@@ -167,21 +177,63 @@ export function FileBrowser() {
   )
   const total = data?.pages[0]?.total ?? null
 
+  // Guest scroll gate. While the session is still resolving we neither fetch
+  // nor gate, so a signed-in user never sees the modal flash on load.
+  const { data: session, isPending: sessionPending } = useSession()
+  const openAuth = useAuthDialog()
+  const loadedPages = data?.pages.length ?? 0
+  const guestGated =
+    !(session || sessionPending) &&
+    Boolean(hasNextPage) &&
+    loadedPages >= GUEST_PAGE_LIMIT
+
+  const [upsellOpen, setUpsellOpen] = useState(false)
+  // Re-arms once the guest scrolls back up, so dismissing the modal doesn't
+  // reopen it on the very next scroll tick while they're still at the bottom.
+  const upsellArmedRef = useRef(true)
+
+  const openUpsell = useCallback(
+    (mode: "signin" | "signup") => {
+      posthog.capture("scroll_upsell_clicked", { mode })
+      setUpsellOpen(false)
+      openAuth(mode, undefined, "unlimited")
+    },
+    [openAuth]
+  )
+
   useEffect(() => {
     function handleScroll() {
-      if (!hasNextPage || isFetchingNextPage) {
+      if (!hasNextPage || isFetchingNextPage || sessionPending) {
         return
       }
       const scrollBottom = window.innerHeight + window.scrollY
-      if (scrollBottom >= document.body.offsetHeight - 400) {
-        fetchNextPage()
+      if (scrollBottom < document.body.offsetHeight - 400) {
+        upsellArmedRef.current = true
+        return
       }
+      if (!guestGated) {
+        fetchNextPage()
+        return
+      }
+      if (!upsellArmedRef.current) {
+        return
+      }
+      upsellArmedRef.current = false
+      posthog.capture("scroll_upsell_shown", { loaded_pages: loadedPages })
+      setUpsellOpen(true)
     }
 
     window.addEventListener("scroll", handleScroll, { passive: true })
     handleScroll()
     return () => window.removeEventListener("scroll", handleScroll)
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+  }, [
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    guestGated,
+    sessionPending,
+    loadedPages,
+  ])
 
   const fileIds = allItems.map((f) => f.id)
   const { data: viewCounts } = trpc.telemetry.viewCounts.useQuery(
@@ -360,6 +412,14 @@ export function FileBrowser() {
           </div>
         )}
       </div>
+
+      <ScrollUpsellDialog
+        onLogIn={() => openUpsell("signin")}
+        onOpenChange={setUpsellOpen}
+        onSignUp={() => openUpsell("signup")}
+        open={upsellOpen}
+        remaining={total === null ? null : total - allItems.length}
+      />
     </>
   )
 }

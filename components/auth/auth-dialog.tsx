@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { AuthHeading, AuthHeroImage } from "./auth-hero"
 import { ModeSwitch } from "./auth-parts"
 import {
+  type AuthIntent,
   type AuthMode,
   type AuthStep,
   DEFAULT_AUTH_REDIRECT,
@@ -19,6 +20,8 @@ interface AuthDialogProps {
   callbackURL?: string
   /** Which tab opens first. The `/login` route passes "signin". */
   initialMode?: AuthMode
+  /** What prompted the dialog — picks the headline copy. */
+  intent?: AuthIntent
   onOpenChange: (open: boolean) => void
   open: boolean
 }
@@ -35,6 +38,7 @@ export function AuthDialog({
   onOpenChange,
   callbackURL = DEFAULT_AUTH_REDIRECT,
   initialMode = "signup",
+  intent = "default",
 }: AuthDialogProps) {
   const [mode, setMode] = useState<AuthMode>(initialMode)
   const [step, setStep] = useState<AuthStep>("form")
@@ -73,7 +77,12 @@ export function AuthDialog({
           <AuthHeroImage />
 
           <div className="px-6 pb-6">
-            <AuthHeading email={email} mode={mode} step={step} />
+            <AuthHeading
+              email={email}
+              intent={intent}
+              mode={mode}
+              step={step}
+            />
 
             {step === "form" && (
               <CredentialsForm
