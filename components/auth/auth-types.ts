@@ -9,3 +9,9 @@ export type AuthMode = "signin" | "signup"
 
 /** The auth dialog's current view in its step machine. */
 export type AuthStep = "form" | "forgot" | "magicSent" | "resetSent"
+
+/**
+ * Why the dialog was opened. Drives the headline copy so a gate can pitch its
+ * own benefit ("unlimited access") instead of the generic sign-up line.
+ */
+export type AuthIntent = "default" | "unlimited"

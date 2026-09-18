@@ -2,7 +2,7 @@ import { Dialog } from "@base-ui/react/dialog"
 import type { ReactNode } from "react"
 import { Logo } from "@/components/ui/logo"
 import { getStaticAssetUrl } from "@/lib/file-url"
-import type { AuthMode, AuthStep } from "./auth-types"
+import type { AuthIntent, AuthMode, AuthStep } from "./auth-types"
 
 /** Archive photo fading into the modal background. */
 export function AuthHeroImage() {
@@ -31,12 +31,14 @@ export function AuthHeading({
   step,
   mode,
   email,
+  intent = "default",
 }: {
   step: AuthStep
   mode: AuthMode
   email: string
+  intent?: AuthIntent
 }) {
-  const { title, subtitle } = heroCopy(step, mode, email)
+  const { title, subtitle } = heroCopy(step, mode, email, intent)
   return (
     <>
       <Dialog.Title className="text-center font-semibold text-2xl tracking-tight">
@@ -62,8 +64,9 @@ function sentTo(prefix: string, email: string): ReactNode {
 function heroCopy(
   step: AuthStep,
   mode: AuthMode,
-  email: string
-): { title: string; subtitle: ReactNode | null } {
+  email: string,
+  intent: AuthIntent
+): { title: ReactNode; subtitle: ReactNode | null } {
   if (step === "forgot") {
     return {
       title: "Reset your password",
@@ -84,6 +87,24 @@ function heroCopy(
       title: "Check your email",
       subtitle: sentTo("Sign-in link sent to", email),
     }
+  }
+  if (intent === "unlimited") {
+    return mode === "signup"
+      ? {
+          title: (
+            <>
+              Sign up for
+              <br />
+              unlimited access
+            </>
+          ),
+          subtitle:
+            "Create a free account to keep browsing the full archive, and save files and clips to your library.",
+        }
+      : {
+          title: "Welcome back",
+          subtitle: "Log in to keep browsing the full archive.",
+        }
   }
   if (mode === "signup") {
     return {

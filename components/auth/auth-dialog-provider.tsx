@@ -3,7 +3,11 @@
 import { createContext, useCallback, useContext, useState } from "react"
 import { currentRelativePath, safeInternalPath } from "@/lib/safe-path"
 import { AuthDialog } from "./auth-dialog"
-import { type AuthMode, DEFAULT_AUTH_REDIRECT } from "./auth-types"
+import {
+  type AuthIntent,
+  type AuthMode,
+  DEFAULT_AUTH_REDIRECT,
+} from "./auth-types"
 
 /**
  * Open the auth modal from anywhere in the app. `callbackURL` defaults to the
@@ -13,7 +17,11 @@ import { type AuthMode, DEFAULT_AUTH_REDIRECT } from "./auth-types"
  * header, the bookmark/clip gates) just call `open()` instead of each owning a
  * dialog + open-state.
  */
-type OpenAuth = (mode: AuthMode, callbackURL?: string) => void
+type OpenAuth = (
+  mode: AuthMode,
+  callbackURL?: string,
+  intent?: AuthIntent
+) => void
 
 const AuthDialogContext = createContext<OpenAuth | null>(null)
 
@@ -25,9 +33,11 @@ export function AuthDialogProvider({
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<AuthMode>("signup")
   const [callbackURL, setCallbackURL] = useState<string>()
+  const [intent, setIntent] = useState<AuthIntent>("default")
 
-  const openAuth = useCallback<OpenAuth>((nextMode, dest) => {
+  const openAuth = useCallback<OpenAuth>((nextMode, dest, nextIntent) => {
     setMode(nextMode)
+    setIntent(nextIntent ?? "default")
     setCallbackURL(
       safeInternalPath(dest ?? currentRelativePath(), DEFAULT_AUTH_REDIRECT)
     )
@@ -40,6 +50,7 @@ export function AuthDialogProvider({
       <AuthDialog
         callbackURL={callbackURL}
         initialMode={mode}
+        intent={intent}
         onOpenChange={setOpen}
         open={open}
       />
