@@ -1,6 +1,7 @@
 "use client"
 
 import { Dialog } from "@base-ui/react/dialog"
+import { useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Logo } from "@/components/ui/logo"
 import { getStaticAssetUrl } from "@/lib/file-url"
@@ -13,6 +14,8 @@ interface ScrollUpsellDialogProps {
   open: boolean
   /** How many more files match the current filters beyond what's loaded. */
   remaining: number | null
+  /** Which surface is gating: tunes the description copy. */
+  variant?: "browse" | "watch"
 }
 
 /**
@@ -28,7 +31,12 @@ export function ScrollUpsellDialog({
   onSignUp,
   open,
   remaining,
+  variant = "browse",
 }: ScrollUpsellDialogProps) {
+  const description = upsellDescription(variant, remaining)
+  // Land focus on the CTA. Base UI otherwise focuses the first tabbable
+  // element, which is the logo's home link — a focus ring on the logo.
+  const ctaRef = useRef<HTMLButtonElement>(null)
   return (
     <Dialog.Root onOpenChange={onOpenChange} open={open}>
       <Dialog.Portal>
@@ -38,6 +46,7 @@ export function ScrollUpsellDialog({
             "fixed top-1/2 left-1/2 z-50 w-[calc(100vw-2rem)] max-w-[34rem] -translate-x-1/2 -translate-y-1/2 overflow-hidden border border-border bg-background shadow-2xl outline-none",
             "data-[ending-style]:scale-[0.98] data-[starting-style]:scale-[0.98] data-[ending-style]:opacity-0 data-[starting-style]:opacity-0 data-[ending-style]:transition-all data-[starting-style]:transition-all"
           )}
+          initialFocus={ctaRef}
         >
           <Mosaic />
 
@@ -47,13 +56,12 @@ export function ScrollUpsellDialog({
               Unlimited access
             </Dialog.Title>
             <Dialog.Description className="mt-4 max-w-[26rem] text-balance text-lg text-muted-foreground leading-relaxed">
-              {remaining && remaining > 0
-                ? `${remaining.toLocaleString()} more files match your search. Create a free account to keep browsing the full archive, and save files and clips to your library.`
-                : "Create a free account to keep browsing the full archive, and save files and clips to your library."}
+              {description}
             </Dialog.Description>
             <Button
               className="mt-10 h-12 w-full font-semibold text-base"
               onClick={onSignUp}
+              ref={ctaRef}
               size="lg"
             >
               Sign up free
@@ -73,6 +81,21 @@ export function ScrollUpsellDialog({
       </Dialog.Portal>
     </Dialog.Root>
   )
+}
+
+function upsellDescription(
+  variant: "browse" | "watch",
+  remaining: number | null
+): string {
+  const count = remaining && remaining > 0 ? remaining.toLocaleString() : null
+  if (variant === "watch") {
+    return count
+      ? `${count} more videos in the feed. Create a free account to keep watching, and save files and clips to your library.`
+      : "Create a free account to keep watching, and save files and clips to your library."
+  }
+  return count
+    ? `${count} more files match your search. Create a free account to keep browsing the full archive, and save files and clips to your library.`
+    : "Create a free account to keep browsing the full archive, and save files and clips to your library."
 }
 
 /**

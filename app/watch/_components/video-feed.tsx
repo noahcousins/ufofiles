@@ -4,6 +4,7 @@ import { XIcon } from "@phosphor-icons/react"
 import { keepPreviousData } from "@tanstack/react-query"
 import { useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { ScrollUpsellDialog } from "@/components/files/scroll-upsell-dialog"
 import { Button } from "@/components/ui/button"
 import { getVideoThumbUrl } from "@/lib/file-url"
 import { trpc } from "@/lib/trpc/client"
@@ -12,8 +13,10 @@ import { EndCard } from "./end-card"
 import { FeedAuth } from "./feed-auth"
 import { FeedFilters } from "./feed-filters"
 import { FeedHeader } from "./feed-header"
+import { FeedWall } from "./feed-wall"
 import { computeLoadState } from "./preload-window"
 import { useFeedFilters } from "./use-feed-filters"
+import { GUEST_VIDEO_LIMIT, useGuestWall } from "./use-guest-wall"
 import { useScrollDirection } from "./use-scroll-direction"
 import { VideoPanel } from "./video-panel"
 import { createPooledVideo, VIDEO_POOL_SIZE } from "./video-pool"
@@ -183,9 +186,23 @@ export function VideoFeed() {
     pinnedId === null
       ? randomized
       : randomized.filter((it) => it.id !== pinnedId)
-  const allItems = pinnedVideo.data
+  const loadedItems = pinnedVideo.data
     ? [pinnedVideo.data, ...dedupedRandom]
     : dedupedRandom
+
+  // Guest wall: the feed ends after GUEST_VIDEO_LIMIT videos with a sign-up
+  // panel, and nothing past it is rendered or fetched.
+  const {
+    guestWall,
+    upsellOpen,
+    setUpsellOpen,
+    openFromWall,
+    openAuthFromUpsell,
+  } = useGuestWall(activeIndex, totalVideos)
+  const allItems = guestWall
+    ? loadedItems.slice(0, GUEST_VIDEO_LIMIT)
+    : loadedItems
+  const tail = feedTail(guestWall, hasNextPage)
 
   // Ambient desktop backdrop: a heavily blurred thumbnail of the active video
   // so the letterbox area beside the centered column isn't flat black.
@@ -219,10 +236,13 @@ export function VideoFeed() {
   // first video of every page. The scroll sentinel alone fires too late.
   useEffect(() => {
     if (
-      hasNextPage &&
-      !isFetchingNextPage &&
-      allItems.length > 0 &&
-      allItems.length - activeIndex <= 3
+      shouldPrefetch({
+        guestWall,
+        hasNextPage,
+        isFetchingNextPage,
+        loaded: allItems.length,
+        activeIndex,
+      })
     ) {
       fetchNextPage()
     }
@@ -232,6 +252,7 @@ export function VideoFeed() {
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
+    guestWall,
   ])
 
   const handleInteract = useCallback(() => {
@@ -543,13 +564,22 @@ export function VideoFeed() {
               )
             })}
 
-            {!hasNextPage && allItems.length > 0 && (
+            {tail === "wall" && (
+              <FeedWall
+                index={GUEST_VIDEO_LIMIT}
+                onOpen={openFromWall}
+                registerRef={registerPanel}
+                thumbUrl={thumbUrlFor(loadedItems[GUEST_VIDEO_LIMIT])}
+              />
+            )}
+
+            {tail === "end" && allItems.length > 0 && (
               <EndCard onShuffle={handleShuffle} />
             )}
 
-            {hasNextPage && <div className="h-1" ref={sentinelRef} />}
+            {tail === "more" && <div className="h-1" ref={sentinelRef} />}
 
-            {isFetchingNextPage && (
+            {tail === "more" && isFetchingNextPage && (
               <div className="flex h-dvh items-center justify-center [scroll-snap-align:start]">
                 <div className="size-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
               </div>
@@ -557,6 +587,51 @@ export function VideoFeed() {
           </>
         )}
       </div>
+
+      <ScrollUpsellDialog
+        onLogIn={() => openAuthFromUpsell("signin")}
+        onOpenChange={setUpsellOpen}
+        onSignUp={() => openAuthFromUpsell("signup")}
+        open={upsellOpen}
+        remaining={
+          totalVideos === null ? null : totalVideos - GUEST_VIDEO_LIMIT
+        }
+        variant="watch"
+      />
     </div>
   )
+}
+
+/** What the feed ends with: the guest wall, more pages, or the end card. */
+function feedTail(
+  guestWall: boolean,
+  hasNextPage: boolean | undefined
+): "wall" | "more" | "end" {
+  if (guestWall) {
+    return "wall"
+  }
+  return hasNextPage ? "more" : "end"
+}
+
+function thumbUrlFor(
+  item: { r2Key: string | null } | undefined
+): string | null {
+  return item?.r2Key ? getVideoThumbUrl(item.r2Key) : null
+}
+
+/**
+ * Prefetch the next page several panels before the boundary (see the effect
+ * that calls this). Never for a walled guest — nothing past the wall loads.
+ */
+function shouldPrefetch(args: {
+  guestWall: boolean
+  hasNextPage: boolean | undefined
+  isFetchingNextPage: boolean
+  loaded: number
+  activeIndex: number
+}): boolean {
+  if (args.guestWall || !args.hasNextPage || args.isFetchingNextPage) {
+    return false
+  }
+  return args.loaded > 0 && args.loaded - args.activeIndex <= 3
 }
