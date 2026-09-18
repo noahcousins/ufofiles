@@ -24,6 +24,7 @@ const AGENCY_SEALS: Record<string, string> = {
   "Central Intelligence Agency": "/img/CIA-Seal.png",
   "Office of the Director of National Intelligence": "/img/ODNI-Seal.png",
   "Executive Office of the President": "/img/EOP-Seal.png",
+  "Intelligence Community Agency": "/img/IC-Seal.png",
   NASA: "/img/NASA-Insignia.png",
 }
 
