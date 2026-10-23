@@ -16,6 +16,7 @@ const KNOWN_RELEASES = [
   "release-4",
   "release-5",
   "release-6",
+  "release-7",
 ]
 
 let manifestPromise: Promise<PdfManifest> | null = null

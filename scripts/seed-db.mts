@@ -57,6 +57,11 @@ const RELEASE_META: Record<
     date: "2026-09-18",
     description: "Sixth release of declassified UAP files",
   },
+  "release-7": {
+    title: "Release 7 - October 23, 2026",
+    date: "2026-10-23",
+    description: "Seventh release of declassified UAP files",
+  },
 }
 
 interface UfoRecord {

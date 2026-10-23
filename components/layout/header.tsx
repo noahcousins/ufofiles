@@ -42,7 +42,7 @@ export function Header({
               onClick={onNewReleaseClick}
             >
               <Button size="xs" variant="default">
-                Release 06 out now
+                Release 07 out now
                 <ArrowRightIcon className="size-4" />
               </Button>
             </Link>
