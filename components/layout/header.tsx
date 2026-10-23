@@ -13,6 +13,14 @@ import { Button } from "@/components/ui/button"
 import { Logo } from "@/components/ui/logo"
 import { cn } from "@/lib/utils"
 
+const RELEASE_NUMBER_RE = /(\d+)$/
+
+// "release-7" → "Release 07"; falls back to "New release" for unexpected names.
+function formatReleaseLabel(name: string) {
+  const match = name.match(RELEASE_NUMBER_RE)
+  return match ? `Release ${match[1].padStart(2, "0")}` : "New release"
+}
+
 interface HeaderProps {
   children?: React.ReactNode
   mobileSearchOpen?: boolean
@@ -42,7 +50,7 @@ export function Header({
               onClick={onNewReleaseClick}
             >
               <Button size="xs" variant="default">
-                Release 07 out now
+                {formatReleaseLabel(newReleaseName)} out now
                 <ArrowRightIcon className="size-4" />
               </Button>
             </Link>
