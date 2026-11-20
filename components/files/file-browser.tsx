@@ -11,7 +11,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { useSession } from "@/lib/auth/session-provider"
 import { loadManifest } from "@/lib/file-cache"
 import { trpc } from "@/lib/trpc/client"
-import { FileCard, SkeletonCard } from "./file-card"
+import { FileCard, preloadFileMedia, SkeletonCard } from "./file-card"
 import { FileFilters, FileFiltersSkeleton } from "./file-filters"
 import { toggleTagParam } from "./filter-controls"
 import { ScrollUpsellDialog } from "./scroll-upsell-dialog"
@@ -264,6 +264,22 @@ export function FileBrowser() {
     : allItems
   // What the file viewer's next/prev arrows may walk: never past the wall.
   const navItems = guestWall ? allItems.slice(0, GUEST_FILE_LIMIT) : allItems
+
+  // While the viewer is open, warm the files on either side so ←/→ is instant.
+  useEffect(() => {
+    if (filters.fileId == null) {
+      return
+    }
+    const index = navItems.findIndex((f) => f.id === filters.fileId)
+    if (index === -1) {
+      return
+    }
+    for (const neighbor of [navItems[index + 1], navItems[index - 1]]) {
+      if (neighbor) {
+        preloadFileMedia(neighbor)
+      }
+    }
+  }, [filters.fileId, navItems])
 
   useEffect(() => {
     function handleScroll() {

@@ -119,6 +119,7 @@ function MorphingDialog({
 export interface MorphingDialogTriggerProps {
   children: React.ReactNode
   className?: string
+  onPointerEnter?: React.PointerEventHandler<HTMLButtonElement>
   style?: React.CSSProperties
   triggerRef?: React.RefObject<HTMLButtonElement>
 }
@@ -128,6 +129,7 @@ function MorphingDialogTrigger({
   className,
   style,
   triggerRef,
+  onPointerEnter,
 }: MorphingDialogTriggerProps) {
   const {
     setIsOpen,
@@ -160,6 +162,7 @@ function MorphingDialogTrigger({
       layoutId={`dialog-${uniqueId}`}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
+      onPointerEnter={onPointerEnter}
       ref={triggerRef ?? contextTriggerRef}
       style={style}
     >
@@ -245,10 +248,7 @@ function MorphingDialogContent({
       // during prev/next the incoming dialog may have already taken focus,
       // and stealing it back would drop keyboard users on a background card.
       const active = document.activeElement
-      if (
-        active === document.body ||
-        containerRef.current?.contains(active)
-      ) {
+      if (active === document.body || containerRef.current?.contains(active)) {
         triggerRef.current?.focus()
       }
     }

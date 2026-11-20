@@ -2,6 +2,7 @@
 
 import {
   ArrowSquareOutIcon,
+  ArrowsOutSimpleIcon,
   BookmarkSimpleIcon,
   CaretLeftIcon,
   CaretRightIcon,
@@ -12,7 +13,7 @@ import {
 import Link from "next/link"
 import posthog from "posthog-js"
 import type React from "react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { HotIndicator } from "@/components/ui/hot-indicator"
@@ -33,6 +34,7 @@ import {
 } from "@/lib/file-url"
 import { cn, formatFileSize } from "@/lib/utils"
 import { useDialogArrowKeys } from "./dialog-nav"
+import { DialogPdfPages, usePdfPageCount } from "./dialog-pdf-pages"
 import {
   type FileItem,
   formatMimeLabel,
@@ -123,6 +125,23 @@ function ShareButton({ fileId, fileUrl }: { fileId: number; fileUrl: string }) {
   )
 }
 
+/** True once the dialog's open morph has settled, so heavy media can start loading. */
+function useOpenAnimationDone() {
+  const { isOpen } = useMorphingDialog()
+  const [done, setDone] = useState(false)
+
+  useEffect(() => {
+    if (!isOpen) {
+      setDone(false)
+      return
+    }
+    const timer = setTimeout(() => setDone(true), 400)
+    return () => clearTimeout(timer)
+  }, [isOpen])
+
+  return done
+}
+
 function ProgressiveDialogImage({
   alt,
   src,
@@ -132,28 +151,18 @@ function ProgressiveDialogImage({
   src: string
   thumbSrc?: string | null
 }) {
-  const { isOpen } = useMorphingDialog()
   const [loaded, setLoaded] = useState(false)
-  const [animationDone, setAnimationDone] = useState(false)
+  const animationDone = useOpenAnimationDone()
 
   useEffect(() => {
     setLoaded(false)
   }, [])
 
-  useEffect(() => {
-    if (!isOpen) {
-      setAnimationDone(false)
-      return
-    }
-    const timer = setTimeout(() => setAnimationDone(true), 400)
-    return () => clearTimeout(timer)
-  }, [isOpen])
-
   if (!thumbSrc) {
     return (
       <MorphingDialogImage
         alt={alt}
-        className="h-full w-full cursor-pointer object-contain"
+        className="h-full w-full object-contain"
         src={src}
       />
     )
@@ -163,17 +172,14 @@ function ProgressiveDialogImage({
     <div className="relative h-full w-full overflow-hidden">
       <MorphingDialogImage
         alt={alt}
-        className={cn(
-          "h-full w-full cursor-pointer object-contain",
-          !loaded && "blur-[2px]"
-        )}
+        className={cn("h-full w-full object-contain", !loaded && "blur-[2px]")}
         src={thumbSrc}
       />
       {animationDone && (
         <img
           alt={alt}
           className={cn(
-            "absolute inset-0 h-full w-full cursor-pointer object-contain transition-opacity duration-300",
+            "absolute inset-0 h-full w-full object-contain transition-opacity duration-300",
             loaded ? "opacity-100" : "opacity-0"
           )}
           onLoad={() => setLoaded(true)}
@@ -214,6 +220,9 @@ export function FileDialog({
   const [clipMode, setClipMode] = useState(false)
   const clipCommit = useClipCommit()
   const bookmark = useBookmark(file.id)
+  const mediaPaneRef = useRef<HTMLDivElement>(null)
+  const animationDone = useOpenAnimationDone()
+  const pageCount = usePdfPageCount(category === "PDF" ? file.r2Key : null)
 
   // Arrow keys navigate the dialog — but not while editing a clip (the editor
   // owns the keyboard then, and navigating would discard the draft).
@@ -241,6 +250,28 @@ export function FileDialog({
           <kbd className="hidden rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground md:inline-block">
             esc
           </kbd>
+          {file.r2Key && (
+            <Link
+              className="ml-1"
+              href={fileUrl}
+              onClick={(e) => {
+                e.stopPropagation()
+                posthog.capture("file_dialog_full_page_opened", {
+                  file_id: file.id,
+                })
+              }}
+            >
+              <Button
+                className="gap-1.5"
+                size="sm"
+                tabIndex={-1}
+                variant="ghost"
+              >
+                <ArrowsOutSimpleIcon className="size-3.5" />
+                <span className="hidden sm:inline">Full page</span>
+              </Button>
+            </Link>
+          )}
           {!clipMode && totalFiles > 1 && (
             <div className="ml-auto flex items-center gap-1">
               <Button
@@ -283,7 +314,10 @@ export function FileDialog({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-          <div className="relative flex min-h-0 flex-1 overflow-y-auto bg-black/5 dark:bg-black/50">
+          <div
+            className="relative flex min-h-0 flex-1 overflow-y-auto overscroll-contain bg-black/5 dark:bg-black/50"
+            ref={mediaPaneRef}
+          >
             {/* Click-to-close stage behind the media, lightbox-style */}
             <button
               aria-hidden="true"
@@ -314,6 +348,20 @@ export function FileDialog({
                   r2Key={file.r2Key}
                 />
               </div>
+            ) : category === "PDF" && file.r2Key && previewSrc ? (
+              <DialogPdfPages
+                firstPage={
+                  <ProgressiveDialogImage
+                    alt={file.title}
+                    src={previewSrc}
+                    thumbSrc={thumbSrc}
+                  />
+                }
+                pageCount={pageCount}
+                r2Key={file.r2Key}
+                ready={animationDone}
+                scrollRef={mediaPaneRef}
+              />
             ) : previewSrc ? (
               <Link
                 className="relative z-10 block h-full w-full"
