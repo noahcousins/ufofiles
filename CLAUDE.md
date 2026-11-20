@@ -76,6 +76,7 @@ Local dev needs `.env.local` (see `.env.example`): `DATABASE_URL`, the `R2_*` cr
 ## Limitations
 
 - Never run pnpm db:push, pnpm db:migrate, or pnpm db:seed. These scripts should only be run explicitly by the user.
+- **This GitHub repo is public.** PR titles and descriptions, commit messages, code comments, and anything else that gets pushed must only explain what the change does. Never include business information: visitor or signup counts, conversion rates, funnel or analytics data, email list size, revenue, or the business reasoning behind a change. Keep that analysis in the conversation with the user. Reread the text for metrics before every commit or `gh pr create`.
 
 ## Workflow
 
