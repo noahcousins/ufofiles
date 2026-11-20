@@ -7,7 +7,10 @@ import { Badge } from "@/components/ui/badge"
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -217,6 +220,88 @@ export function AgencySelect({
   )
 }
 
+// PURSUE tranches are named "release-N"; everything else is a historical
+// (pre-PURSUE) disclosure such as "1949-project-grudge" or "cia-ufo-foia".
+const PURSUE_NAME_RE = /^release[-_]\d+$/
+const PURSUE_TITLE_RE = /^Release \d+/
+const TITLE_YEAR_RE = /\s*\(\d{4}\)$/
+
+function isPursueRelease(r: ReleaseInfo) {
+  return PURSUE_NAME_RE.test(r.name)
+}
+
+function groupReleases(releases: ReleaseInfo[]) {
+  return [
+    { label: "PURSUE releases", releases: releases.filter(isPursueRelease) },
+    {
+      label: "Historical releases",
+      releases: releases.filter((r) => !isPursueRelease(r)),
+    },
+  ].filter((g) => g.releases.length > 0)
+}
+
+// The date already sits in its own column, so drop it from the name:
+// "Release 8 - November 20, 2026" → "Release 8", "CIA UFO Files (1978)" →
+// "CIA UFO Files".
+function releaseName(r: ReleaseInfo) {
+  return (
+    r.title.match(PURSUE_TITLE_RE)?.[0] ?? r.title.replace(TITLE_YEAR_RE, "")
+  )
+}
+
+// "May 8" for PURSUE releases (all 2026), the year for historical ones.
+function releaseWhen(r: ReleaseInfo) {
+  if (!r.releaseDate) {
+    return ""
+  }
+  if (!isPursueRelease(r)) {
+    return r.releaseDate.slice(0, 4)
+  }
+  return new Date(`${r.releaseDate}T00:00:00`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  })
+}
+
+function ReleaseOption({
+  release,
+  count,
+  isNew,
+  ping,
+}: {
+  release: ReleaseInfo
+  count: number
+  isNew: boolean
+  ping: boolean
+}) {
+  return (
+    <SelectItem value={release.name}>
+      <span className="relative w-14 shrink-0 text-muted-foreground tabular-nums">
+        {releaseWhen(release)}
+        {/* inside the date column so the name column stays aligned */}
+        {ping && (
+          <span className="absolute top-1/2 right-1 flex size-1.5 -translate-y-1/2">
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-ring opacity-75" />
+            <span className="relative inline-flex size-1.5 rounded-full bg-ring" />
+          </span>
+        )}
+      </span>
+      <span className="min-w-0 flex-1 truncate">{releaseName(release)}</span>
+      {isNew && (
+        <Badge
+          className="shrink-0 bg-primary! px-1 py-0 text-[10px] text-primary-foreground! uppercase"
+          variant="default"
+        >
+          New
+        </Badge>
+      )}
+      <span className="w-8 shrink-0 text-right text-muted-foreground tabular-nums">
+        {count}
+      </span>
+    </SelectItem>
+  )
+}
+
 export function ReleaseSelect({
   release,
   releases,
@@ -265,41 +350,35 @@ export function ReleaseSelect({
             <span className="relative inline-flex size-1.5 rounded-full bg-ring" />
           </span>
         )}
-        <SelectValue>
-          {release
-            ? (releases.find((r) => r.name === release)?.title ?? release)
-            : "All releases"}
+        <SelectValue className="min-w-0">
+          <span className="truncate">
+            {release
+              ? (releases.find((r) => r.name === release)?.title ?? release)
+              : "All releases"}
+          </span>
         </SelectValue>
       </SelectTrigger>
-      <SelectContent alignItemWithTrigger={false}>
+      <SelectContent
+        align="end"
+        alignItemWithTrigger={false}
+        // Historical titles are long: let the list grow past the trigger.
+        className="w-max min-w-(--anchor-width) max-w-[min(28rem,var(--available-width))]"
+      >
         <SelectItem value="all">All releases</SelectItem>
-        {releases.map((r) => (
-          <SelectItem key={r.name} value={r.name}>
-            <span className="flex w-full items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5">
-                {isReleaseNew(r) && !seenNewestRelease && (
-                  <span className="relative flex size-1.5 shrink-0">
-                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-ring opacity-75" />
-                    <span className="relative inline-flex size-1.5 rounded-full bg-ring" />
-                  </span>
-                )}
-                {r.title}
-              </span>
-              <span className="flex items-center gap-1.5">
-                {isReleaseNew(r) && (
-                  <Badge
-                    className="bg-primary! px-1 py-0 text-[10px] text-primary-foreground! uppercase"
-                    variant="default"
-                  >
-                    New
-                  </Badge>
-                )}
-                <span className="text-muted-foreground">
-                  {releaseCounts ? (releaseCounts[r.id] ?? 0) : r.fileCount}
-                </span>
-              </span>
-            </span>
-          </SelectItem>
+        {groupReleases(releases).map((group) => (
+          <SelectGroup key={group.label}>
+            <SelectSeparator />
+            <SelectLabel>{group.label}</SelectLabel>
+            {group.releases.map((r) => (
+              <ReleaseOption
+                count={releaseCounts ? (releaseCounts[r.id] ?? 0) : r.fileCount}
+                isNew={isReleaseNew(r)}
+                key={r.name}
+                ping={isReleaseNew(r) && !seenNewestRelease}
+                release={r}
+              />
+            ))}
+          </SelectGroup>
         ))}
       </SelectContent>
     </Select>
