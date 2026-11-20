@@ -1,5 +1,8 @@
 import type { Metadata } from "next"
-import { redirect } from "next/navigation"
+import {
+  type ReleaseSearchParams,
+  redirectToRelease,
+} from "@/lib/release-redirect"
 
 export const metadata: Metadata = {
   title: "Official UFO Files Release 06 | [ufo]files",
@@ -26,6 +29,10 @@ export const metadata: Metadata = {
   },
 }
 
-export default function Release6Page() {
-  redirect("/?release=release-6")
+export default async function Release6Page({
+  searchParams,
+}: {
+  searchParams: ReleaseSearchParams
+}) {
+  await redirectToRelease("release-6", searchParams)
 }
