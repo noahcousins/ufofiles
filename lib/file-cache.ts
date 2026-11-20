@@ -18,6 +18,23 @@ const KNOWN_RELEASES = [
   "release-6",
   "release-7",
   "release-8",
+  // Historical (pre-PURSUE) releases
+  "1949-project-grudge",
+  "1952-pentagon-press-conference",
+  "1955-blue-book-special-report-14",
+  "1969-blue-book-closure",
+  "fbi-ufo-foia",
+  "cia-ufo-foia",
+  "nsa-ufo-foia",
+  "1994-roswell-report",
+  "1997-roswell-case-closed",
+  "2020-navy-uap-videos",
+  "2021-odni-preliminary-assessment",
+  "2022-congressional-uap-hearing",
+  "2023-odni-annual-report",
+  "2023-nasa-uap-study",
+  "2024-aaro-historical-record-vol1",
+  "2025-aaro-public-records",
 ]
 
 let manifestPromise: Promise<PdfManifest> | null = null
