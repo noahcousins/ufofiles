@@ -11,7 +11,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { useSession } from "@/lib/auth/session-provider"
 import { loadManifest } from "@/lib/file-cache"
 import { trpc } from "@/lib/trpc/client"
-import { FileCard, SkeletonCard } from "./file-card"
+import { FileCard, preloadFileMedia, SkeletonCard } from "./file-card"
 import { FileFilters, FileFiltersSkeleton } from "./file-filters"
 import { toggleTagParam } from "./filter-controls"
 import { ScrollUpsellDialog } from "./scroll-upsell-dialog"
@@ -157,6 +157,18 @@ export function FileBrowser() {
   // Captured on mount so clicking around the grid doesn't re-sort it.
   const priorityIdRef = useRef(filters.fileId)
 
+  // Prev/next inside the open viewer moves between two cards' dialogs, which
+  // would replay the full card↔fullscreen morph twice per step. Swap instantly
+  // when fileId goes id→id; only true open (null→id) and close (id→null) morph.
+  const prevOpenFileIdRef = useRef(filters.fileId)
+  const isViewerNavigation =
+    prevOpenFileIdRef.current != null &&
+    filters.fileId != null &&
+    prevOpenFileIdRef.current !== filters.fileId
+  useEffect(() => {
+    prevOpenFileIdRef.current = filters.fileId
+  })
+
   const {
     data,
     isLoading,
@@ -252,6 +264,22 @@ export function FileBrowser() {
     : allItems
   // What the file viewer's next/prev arrows may walk: never past the wall.
   const navItems = guestWall ? allItems.slice(0, GUEST_FILE_LIMIT) : allItems
+
+  // While the viewer is open, warm the files on either side so ←/→ is instant.
+  useEffect(() => {
+    if (filters.fileId == null) {
+      return
+    }
+    const index = navItems.findIndex((f) => f.id === filters.fileId)
+    if (index === -1) {
+      return
+    }
+    for (const neighbor of [navItems[index + 1], navItems[index - 1]]) {
+      if (neighbor) {
+        preloadFileMedia(neighbor)
+      }
+    }
+  }, [filters.fileId, navItems])
 
   useEffect(() => {
     function handleScroll() {
@@ -460,6 +488,7 @@ export function FileBrowser() {
                 <FileCard
                   currentIndex={index}
                   file={file}
+                  instantTransition={isViewerNavigation}
                   isOpen={filters.fileId === file.id}
                   key={file.id}
                   nextFileId={

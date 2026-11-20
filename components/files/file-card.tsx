@@ -1,7 +1,7 @@
 "use client"
 
 import { Play } from "@phosphor-icons/react"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { HotIndicator } from "@/components/ui/hot-indicator"
 import {
@@ -62,6 +62,35 @@ function getPreviewSrc(r2Key: string | null): string | null {
     return null
   }
   return getCardThumbUrl(r2Key)
+}
+
+/** The full-size image the file viewer shows first (page 1 for PDFs). */
+export function getDialogPreviewSrc(file: FileItem): string | null {
+  const category = getMimeCategory(file.mimeType)
+  if (category === "IMG" && file.r2Key) {
+    return getFileUrl(file.r2Key)
+  }
+  if (category === "PDF" && file.r2Key) {
+    return getFirstPdfPageUrl(file.r2Key)
+  }
+  return getPreviewSrc(file.r2Key)
+}
+
+const preloaded = new Set<string>()
+
+/**
+ * Warm the browser cache with what the viewer shows first for this file, so
+ * opening it (or arrowing to it) paints the sharp image with no wait.
+ */
+export function preloadFileMedia(file: FileItem) {
+  const src = getDialogPreviewSrc(file)
+  if (!src || preloaded.has(src) || typeof window === "undefined") {
+    return
+  }
+  preloaded.add(src)
+  const img = new Image()
+  img.decoding = "async"
+  img.src = src
 }
 
 export const TYPE_COLORS: Record<string, string> = {
@@ -216,6 +245,7 @@ export function FileCard({
   currentIndex,
   totalFiles,
   viewData,
+  instantTransition,
 }: {
   file: FileItem
   isOpen: boolean
@@ -226,24 +256,40 @@ export function FileCard({
   currentIndex: number
   totalFiles: number
   viewData?: ViewData
+  /** Skip the card↔fullscreen morph (used when swapping files inside the open viewer). */
+  instantTransition?: boolean
 }) {
   const category = getMimeCategory(file.mimeType)
   const previewSrc = getPreviewSrc(file.r2Key)
-  const dialogPreviewSrc =
-    category === "IMG" && file.r2Key
-      ? getFileUrl(file.r2Key)
-      : category === "PDF" && file.r2Key
-        ? getFirstPdfPageUrl(file.r2Key)
-        : previewSrc
+  const dialogPreviewSrc = getDialogPreviewSrc(file)
   const fileUrl = file.r2Key ? getFilePagePath(file.r2Key) : "#"
+
+  // Mounted already open: a shared link or a reload with ?fileId. Nobody
+  // clicked, and the grid behind is still settling, so morphing from the card
+  // replays as a slow see-through crossfade. Show it instantly instead. It
+  // resets on the close render, so closing still morphs back into the card.
+  const openedOnMountRef = useRef(isOpen)
+  openedOnMountRef.current = openedOnMountRef.current && isOpen
+  const skipMorph = instantTransition || openedOnMountRef.current
 
   return (
     <MorphingDialog
       onOpenChange={onOpenChange}
       open={isOpen}
-      transition={{ type: "spring", stiffness: 200, damping: 24 }}
+      transition={
+        skipMorph
+          ? { duration: 0 }
+          : { type: "spring", stiffness: 200, damping: 24 }
+      }
     >
-      <MorphingDialogTrigger className="flex flex-col overflow-hidden border border-border bg-card text-left transition-colors hover:border-ring/40 hover:bg-muted/30">
+      <MorphingDialogTrigger
+        className="flex flex-col overflow-hidden border border-border bg-card text-left transition-colors hover:border-ring/40 hover:bg-muted/30"
+        onPointerEnter={(e) => {
+          if (e.pointerType === "mouse") {
+            preloadFileMedia(file)
+          }
+        }}
+      >
         {category === "VID" && file.r2Key ? (
           <VideoTriggerPreview
             file={{ r2Key: file.r2Key, title: file.title }}
