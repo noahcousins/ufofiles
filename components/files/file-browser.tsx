@@ -25,9 +25,7 @@ const PAGE_SIZE = 48
  * filter or search change starts the count over instead of firing the gate
  * on the freshly-narrowed list. Signed-in users are never gated.
  *
- * Set to one page: 72 meant only ~9% of visitors ever saw the gate, while
- * nearly twice as many reach 48 (browse_depth_reached). A release's own files
- * still fit under it, so a release-day visitor reads the whole new drop.
+ * One page: guests get the first load free and are gated on the next.
  */
 const GUEST_FILE_LIMIT = PAGE_SIZE
 
