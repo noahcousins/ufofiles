@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { useTheme } from "next-themes"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Header } from "@/components/layout/header"
-import { geocodeLocation } from "@/lib/geo/locations"
+import { LOCATION_COORDS, resolveLocation } from "@/lib/geo/locations"
 import { trpc } from "@/lib/trpc/client"
 
 interface MarkerMeta {
@@ -16,6 +16,16 @@ interface MarkerMeta {
   lat: number
   lng: number
   name: string
+  /** Query for the file browser: every raw location string at this point. */
+  search: string
+}
+
+interface Point {
+  count: number
+  lat: number
+  lng: number
+  places: Map<string, number>
+  raws: Set<string>
 }
 
 function toMarkerId(name: string): string {
@@ -156,6 +166,64 @@ function buildMarkers(meta: MarkerMeta[]): Marker[] {
   }))
 }
 
+// Several raw strings can land on one point (variants, typos, places that
+// share coordinates), so aggregate per point before sizing markers.
+function aggregatePoints(
+  locationData: { count: number; location: string | null }[]
+): Point[] {
+  const points = new Map<string, Point>()
+
+  for (const item of locationData) {
+    if (!item.location) {
+      continue
+    }
+    const keys = resolveLocation(item.location)
+    if (keys.length === 0 && process.env.NODE_ENV === "development") {
+      console.warn(
+        `[globe] Unmapped location: "${item.location}" (${item.count} incidents)`
+      )
+    }
+    for (const key of keys) {
+      const [lat, lng] = LOCATION_COORDS[key]
+      const pointKey = `${lat},${lng}`
+      let point = points.get(pointKey)
+      if (!point) {
+        point = { count: 0, lat, lng, places: new Map(), raws: new Set() }
+        points.set(pointKey, point)
+      }
+      point.count += item.count
+      point.places.set(key, (point.places.get(key) ?? 0) + item.count)
+      point.raws.add(item.location)
+    }
+  }
+
+  return [...points.values()]
+}
+
+function toMarkerMeta(points: Point[]): MarkerMeta[] {
+  const maxCount = Math.max(...points.map((p) => p.count), 1)
+
+  return points.map((point) => {
+    const name = [...point.places]
+      .sort((x, y) => y[1] - x[1])
+      .map(([place]) => place)
+      .join(" / ")
+    const raws = [...point.raws]
+    return {
+      name,
+      id: toMarkerId(name),
+      lat: point.lat,
+      lng: point.lng,
+      baseSize: 0.04 + (point.count / maxCount) * 0.12,
+      count: point.count,
+      search:
+        raws.length === 1
+          ? raws[0]
+          : raws.map((raw) => `"${raw}"`).join(" or "),
+    }
+  })
+}
+
 export function Globe() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const phiRef = useRef(0)
@@ -173,37 +241,10 @@ export function Globe() {
 
   const [locationData] = trpc.files.locations.useSuspenseQuery()
 
-  const markerMeta = useMemo<MarkerMeta[]>(() => {
-    if (!locationData) {
-      return []
-    }
-    const maxCount = Math.max(...locationData.map((d) => d.count), 1)
-    const meta: MarkerMeta[] = []
-
-    for (const item of locationData) {
-      if (!item.location) {
-        continue
-      }
-      const coords = geocodeLocation(item.location)
-      if (!coords) {
-        if (process.env.NODE_ENV === "development") {
-          console.warn(
-            `[globe] Unmapped location: "${item.location}" (${item.count} incidents)`
-          )
-        }
-        continue
-      }
-      meta.push({
-        name: item.location,
-        id: toMarkerId(item.location),
-        lat: coords[0],
-        lng: coords[1],
-        baseSize: 0.04 + (item.count / maxCount) * 0.12,
-        count: item.count,
-      })
-    }
-    return meta
-  }, [locationData])
+  const markerMeta = useMemo<MarkerMeta[]>(
+    () => (locationData ? toMarkerMeta(aggregatePoints(locationData)) : []),
+    [locationData]
+  )
 
   markerMetaRef.current = markerMeta
 
@@ -362,8 +403,7 @@ export function Globe() {
         const m = findNearestMarker(hit.lat, hit.lng, markerMetaRef.current)
         if (m) {
           setSelectedLocation(m.name)
-          const name = m.name
-          router.push(`/?search=${encodeURIComponent(name)}`)
+          router.push(`/?search=${encodeURIComponent(m.search)}`)
         }
       }
     }
