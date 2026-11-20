@@ -29,7 +29,7 @@ pnpm worker:dev
 pnpm worker:deploy
 
 # Scrape/ingest pipeline (see "Scrape pipeline" below)
-pnpm scrape                 # run all steps via scripts/scrape/run-all.ts
+pnpm scrape                 # run all steps via scraper/run-all.ts
 pnpm scrape:csv .. :link    # run an individual numbered step
 ```
 
@@ -63,8 +63,8 @@ Postgres stores an `r2Key` prefixed by logical bucket (`source/`, `assets/`, `do
 - `lib/file-url.ts` builds URLs against `NEXT_PUBLIC_WORKER_URL` and **derives asset-derivative paths by naming convention** (card thumbs, `pdf-pages/`, `video-stream/…_720p.mp4`, `video-thumbs/`, `video-previews/`). Source keys map to asset keys via `lib/r2-paths.ts` (`sourceToAssets`).
 - `worker/index.ts` (deployed separately via `wrangler.json`) resolves the prefix to one of four R2 buckets (`R2_SOURCE`/`R2_ASSETS`/`R2_DOWNLOADS`/`R2_LEGACY`), handles HTTP Range requests, edge caching, IP rate limiting, and a legacy-key fallback. Bucket bindings are defined in `wrangler.json`.
 
-### Scrape / ingest pipeline (`scripts/scrape/`)
-Numbered steps `01`–`13`, each exporting `main()`. `run-all.ts` runs them in order and **stops on the first failure** (later steps depend on earlier outputs). Flow: fetch/parse CSV → download docs & videos → generate previews/thumbnails (pdftoppm, ffmpeg, sharp) → transcode → upload source & assets to R2 → link DB records. `config.ts` resolves the active release (`--release` flag > `RELEASE` env > `release-1`) and holds all tunables/paths; intermediate artifacts land in `ufo-files/{release}/` (gitignored).
+### Scrape / ingest pipeline (`scraper/`)
+`scraper/` is public (committed so anyone can scrape the source themselves). Everything else in `scripts/` (seed, moments, tags, glossary, the `scripts/release.ts` orchestrator, the runbook) is **gitignored and was purged from git history: never commit it**, and never import from `scripts/` into `scraper/` or app code. Numbered steps `01`–`13`, each exporting `main()`. `run-all.ts` runs them in order and **stops on the first failure** (later steps depend on earlier outputs). Flow: fetch/parse CSV → download docs & videos → generate previews/thumbnails (pdftoppm, ffmpeg, sharp) → transcode → upload source & assets to R2 → link DB records. `config.ts` resolves the active release (`--release` flag > `RELEASE` env > `release-1`) and holds all tunables/paths; intermediate artifacts land in `ufo-files/{release}/` (gitignored).
 
 ### Frontend
 App Router. The **homepage `app/page.tsx` is the file browser**; the **video feed lives at `/watch`** (`app/watch/page.tsx`), where `/watch?v=<id>` deep-links a specific video. Legacy routes redirect: `/files` → `/` (preserving query), `/globe` → `/map`. Filter/search state lives in the URL via **nuqs**. UI is **shadcn/ui** (style `base-lyra`, Phosphor icons) on **Tailwind v4**; theme defaults to dark. The changelog is **MDX** files in `content/changelog/*.mdx` parsed by `lib/changelog.ts` (gray-matter frontmatter). PostHog analytics is proxied through the `/ingest/*` rewrites in `next.config.ts`. `proxy.ts` is the Next middleware (bot detection for OG/file-share crawlers).

@@ -28,7 +28,7 @@ This will start the development server at `http://localhost:3000`.
 
 Though all files are archived and available for download on [showmeufos.com](https://showmeufos.com), anyone can use the scraping commands to download their own copy of the files from the source.
 
-The scraping pipeline is defined in the `scripts/scrape/` directory. It is a series of steps that download the files from the source and ingest them into the database and cloud storage. For more information, see the Scraping pipeline file (tbd).
+The scraping pipeline lives in [`scraper/`](scraper/README.md). It is a series of steps that download the files from the source and ingest them into the database and cloud storage. See the [scraper README](scraper/README.md) for requirements and commands.
 
 ## File storage
 
