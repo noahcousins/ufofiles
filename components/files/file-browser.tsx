@@ -24,8 +24,12 @@ const PAGE_SIZE = 48
  * until they sign in. Depth is measured against the current results, so a
  * filter or search change starts the count over instead of firing the gate
  * on the freshly-narrowed list. Signed-in users are never gated.
+ *
+ * Set to one page: 72 meant only ~9% of visitors ever saw the gate, while
+ * nearly twice as many reach 48 (browse_depth_reached). A release's own files
+ * still fit under it, so a release-day visitor reads the whole new drop.
  */
-const GUEST_FILE_LIMIT = 72
+const GUEST_FILE_LIMIT = PAGE_SIZE
 
 /**
  * Cards rendered past the limit for guests, faded out under the gradient and
@@ -251,7 +255,6 @@ export function FileBrowser() {
   // What the file viewer's next/prev arrows may walk: never past the wall.
   const navItems = guestWall ? allItems.slice(0, GUEST_FILE_LIMIT) : allItems
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: loadedCount re-runs the handler after the grid resizes; see the comment below
   useEffect(() => {
     function handleScroll() {
       // While a filter change is in flight the grid still shows the previous
@@ -269,7 +272,10 @@ export function FileBrowser() {
         signed_in: Boolean(session),
       })
 
-      if (isGuest && filesSeen >= GUEST_FILE_LIMIT) {
+      // Only gate when something actually lies past the limit: a result set
+      // of exactly one page would otherwise fire on its last card.
+      const moreBeyondLimit = hasNextPage || loadedCount > GUEST_FILE_LIMIT
+      if (isGuest && moreBeyondLimit && filesSeen >= GUEST_FILE_LIMIT) {
         if (!upsellArmedRef.current) {
           return
         }
