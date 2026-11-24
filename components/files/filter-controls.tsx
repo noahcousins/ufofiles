@@ -24,11 +24,27 @@ const AGENCY_SEALS: Record<string, string> = {
   "Department of War": "/img/DOW-Seal.png",
   "Department of State": "/img/DOS-Seal.png",
   "Department of Energy": "/img/DOE-Seal.png",
+  CIA: "/img/CIA-Seal.png",
   "Central Intelligence Agency": "/img/CIA-Seal.png",
   "Office of the Director of National Intelligence": "/img/ODNI-Seal.png",
+  "Office of the Director of National Intelligence / Department of Defense":
+    "/img/ODNI-Seal.png",
   "Executive Office of the President": "/img/EOP-Seal.png",
   "Intelligence Community Agency": "/img/IC-Seal.png",
   NASA: "/img/NASA-Insignia.png",
+  "Department of Defense": "/img/DOD-Seal.png",
+  "U.S. Department of Defense": "/img/DOD-Seal.png",
+  "DoD/AARO": "/img/AARO-Seal.png",
+  NSA: "/img/NSA-Seal.png",
+  "National Academy of Sciences": "/img/NAS-Seal.png",
+  "U.S. Air Force": "/img/USAF-Seal.png",
+  "U.S. Army Signal Corps": "/img/Signal-Corps-Insignia.png",
+  "U.S. General Accounting Office": "/img/GAO-Seal.png",
+  "U.S. Government": "/img/US-Great-Seal.png",
+  "U.S. House of Representatives": "/img/House-Seal.png",
+  "U.S. Navy": "/img/Navy-Seal.png",
+  "University of Colorado (under U.S. Air Force contract F44620-67-C-0035)":
+    "/img/CU-Seal.png",
 }
 
 export const DATE_RANGE_LABELS: Record<string, string> = {
